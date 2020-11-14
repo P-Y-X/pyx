@@ -13,6 +13,22 @@ class PYXModelInterface(ABC):
         pass
 
     @abstractmethod
+    def get_input_shapes(self) -> dict:
+        """
+        Depends on the task you have, please consider providing proper model shape (skipping batch-dimensions).
+        Further information: [docs url]
+        """
+        pass
+
+    @abstractmethod
+    def get_input_types(self) -> dict:
+        """
+        Depends on the task you have, please consider providing proper input types.
+        Further information: [docs url]
+        """
+        pass
+
+    @abstractmethod
     def get_preprocessor(self) -> DataPreprocessor:
         """
         Depends on the task you have, please consider providing proper model preprocessor.
@@ -31,7 +47,7 @@ class PYXModelInterface(ABC):
     @abstractmethod
     def set_weights(self) -> None:
         """
-        Depends on the task you have, please consider setting proper model preprocessor.
+        Depends on the task you have, please consider setting proper model weights here.
         Further information: [docs url]
         """
         pass

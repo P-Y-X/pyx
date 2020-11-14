@@ -1007,6 +1007,7 @@ IMAGENET_CLASSES = {
 class DefaultImageNetPostprocessor(PredictionPostprocessor):
 
     def __init__(self):
+        super().__init__()
         self.class_labels = IMAGENET_CLASSES
 
     def postprocess(self, y: dict) -> dict:

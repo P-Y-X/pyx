@@ -8,8 +8,10 @@ import torch
 
 
 class PYXImplementedModel(PYXModelInterface):
-    def __init__(self):
+    def __init__(self, device='cuda'):
+        super().__init__()
         self.model = None
+        self.device = device
 
     def initialize(self) -> None:
         """
@@ -18,6 +20,25 @@ class PYXImplementedModel(PYXModelInterface):
         """
         self.model = Model()
         self.model.eval()
+        self.model.to(self.device)
+
+    def get_input_shapes(self) -> dict:
+        """
+        Depends on the task you have, please consider providing proper model shape (skipping batch-dimension).
+        Further information: [docs url]
+        """
+        return {
+            "input_image": [3, 224, 224],
+        }
+
+    def get_input_types(self) -> dict:
+        """
+        Depends on the task you have, please consider providing proper model types.
+        Further information: [docs url]
+        """
+        return {
+            "input_image": 'image',
+        }
 
     def get_preprocessor(self) -> DataPreprocessor:
         """
@@ -47,7 +68,7 @@ class PYXImplementedModel(PYXModelInterface):
         Further information: [docs url]
         """
         with torch.no_grad():
-            x = torch.FloatTensor(sample['normalized_image']).unsqueeze(0)
+            x = torch.FloatTensor(sample['input_image']).unsqueeze(0).to(self.device)
             y = self.model.forward(x).squeeze(0).cpu().detach().numpy()
 
         return {
