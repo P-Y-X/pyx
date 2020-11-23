@@ -2,7 +2,7 @@ import argparse
 
 
 __PYX_CONFIG__ = {
-    'api_url': 'http://127.0.0.1:8888/'
+    'api_url': 'https://beta.pyx.ai/api/'
 }
 
 
@@ -46,10 +46,10 @@ def auth(args):
     # TODO: check user creds
     import requests
     from urllib.parse import urljoin
-    headers = {'user_token': __PYX_CONFIG__["user_token"]}
+    headers = {'user-token': __PYX_CONFIG__["user_token"]}
 
     r = requests.get(
-        urljoin(__PYX_CONFIG__["api_url"], 'auth'),
+        urljoin(__PYX_CONFIG__["api_url"], 'auth/check'),
         params={},
         headers=headers
     )
@@ -152,7 +152,7 @@ def push(args, **kwargs):
         print('Uploading data ...')
         model_id, framework = args.model_name.split('/')
         fileobj = open(os.path.join(tmpdirname, '_project.zip'), 'rb')
-        headers = {'user_token':  __PYX_CONFIG__["user_token"]}
+        headers = {'user-token':  __PYX_CONFIG__["user_token"]}
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'model/' + model_id + '/upload/' + framework),
                           headers=headers,
                           files={"project_files": ("project.zip", fileobj)})
@@ -173,7 +173,7 @@ def pull(args, **kwargs):
     print('Downloading data ...')
     model_id, framework = args.model_name.split('/')
 
-    headers = {'user_token':  __PYX_CONFIG__["user_token"]}
+    headers = {'user-token':  __PYX_CONFIG__["user_token"]}
     r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'model/' + model_id + '/download/' + framework),
                      headers=headers, stream=True)
 
@@ -192,6 +192,27 @@ def pull(args, **kwargs):
 
         print('....')
         print('DONE')
+
+
+def predict(args, **kwargs):
+    print(args, kwargs)
+    import requests
+    from urllib.parse import urljoin
+    import shutil
+    import os
+    import tempfile
+    import json
+    model_id, framework = args.model_name.split('/')
+
+    headers = {'user-token':  __PYX_CONFIG__["user_token"]}
+    r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'model/' + model_id + '/predict/' + framework),
+                     headers=headers)
+
+    if r.status_code == 200:
+        print('Succesfully predicted ...')
+    else:
+        print('An error occured.')
+        return
 
 
 def main():
@@ -214,7 +235,22 @@ def main():
     parser_push = subparsers.add_parser('push', help='Push current workspace to pyx.ai')
     parser_push.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
 
+    parser_predict = subparsers.add_parser('predict', help='Push current workspace to pyx.ai')
+    parser_predict.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
+
     _ = subparsers.add_parser('test', help='Run tests locally')
+
+    # params = parser.parse_args()
+
+    params, unknown = parser.parse_known_args() # this is an 'internal' method
+    # which returns 'parsed', the same as what parse_args() would return
+    # and 'unknown', the remainder of that
+    # the difference to parse_args() is that it does not exit when it finds redundant arguments
+
+    for arg in unknown:
+        if arg.startswith(("-", "--")):
+            # you can pass any arguments to add_argument
+            parser_predict.add_argument(arg, type=str)
 
     params = parser.parse_args()
 
@@ -224,6 +260,7 @@ def main():
         'test': test,
         'push': push,
         'pull': pull,
+        'predict': predict,
     }
 
     subprogs[params.mode](params)
