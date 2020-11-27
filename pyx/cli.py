@@ -3,6 +3,7 @@ import argparse
 
 __PYX_CONFIG__ = {
     'api_url': 'https://beta.pyx.ai/api/'
+    # 'api_url': 'http://127.0.0.1:8888/api/'
 }
 
 
@@ -136,8 +137,10 @@ def test(*args, **kwargs):
 
 
 def push(args, **kwargs):
-    if not test():
-        print('Can not submit without testing first.')
+    if not args.ignore_local_test:
+        if not test():
+            print('Can not submit without passing testing first.')
+            return
 
     import requests
     from urllib.parse import urljoin
@@ -153,7 +156,7 @@ def push(args, **kwargs):
         model_id, framework = args.model_name.split('/')
         fileobj = open(os.path.join(tmpdirname, '_project.zip'), 'rb')
         headers = {'user-token':  __PYX_CONFIG__["user_token"]}
-        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'model/' + model_id + '/upload/' + framework),
+        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/upload/' + framework),
                           headers=headers,
                           files={"project_files": ("project.zip", fileobj)})
 
@@ -174,7 +177,7 @@ def pull(args, **kwargs):
     model_id, framework = args.model_name.split('/')
 
     headers = {'user-token':  __PYX_CONFIG__["user_token"]}
-    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'model/' + model_id + '/download/' + framework),
+    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/download/' + framework),
                      headers=headers, stream=True)
 
     if r.status_code == 200:
@@ -194,22 +197,28 @@ def pull(args, **kwargs):
         print('DONE')
 
 
-def predict(args, **kwargs):
-    print(args, kwargs)
+def predict(args, extra_fields):
     import requests
     from urllib.parse import urljoin
-    import shutil
-    import os
-    import tempfile
-    import json
+
     model_id, framework = args.model_name.split('/')
 
-    headers = {'user-token':  __PYX_CONFIG__["user_token"]}
-    r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'model/' + model_id + '/predict/' + framework),
-                     headers=headers)
+    def base64_encode_file(file_to_encode):
+        import base64
+        return base64.b64encode(open(file_to_encode, 'rb').read())
+
+    data = {}
+
+    extra_fields = vars(extra_fields)
+    for k in extra_fields:
+        data[k] = base64_encode_file(extra_fields[k]).decode("utf-8")
+
+    headers = {'user-token': __PYX_CONFIG__["user_token"]}
+    r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/predict/' + framework),
+                      headers=headers, json=data)
 
     if r.status_code == 200:
-        print('Succesfully predicted ...')
+        print('Succesfully predicted ...', r.json())
     else:
         print('An error occured.')
         return
@@ -234,25 +243,25 @@ def main():
 
     parser_push = subparsers.add_parser('push', help='Push current workspace to pyx.ai')
     parser_push.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
+    parser_push.add_argument('--ignore-local-test', default=False, type=bool, help='do not run local test')
 
     parser_predict = subparsers.add_parser('predict', help='Push current workspace to pyx.ai')
     parser_predict.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
 
     _ = subparsers.add_parser('test', help='Run tests locally')
 
-    # params = parser.parse_args()
-
-    params, unknown = parser.parse_known_args() # this is an 'internal' method
+    params, unknown = parser.parse_known_args()  # this is an 'internal' method
     # which returns 'parsed', the same as what parse_args() would return
     # and 'unknown', the remainder of that
     # the difference to parse_args() is that it does not exit when it finds redundant arguments
 
+    extra_fields_parser = argparse.ArgumentParser()
     for arg in unknown:
         if arg.startswith(("-", "--")):
             # you can pass any arguments to add_argument
-            parser_predict.add_argument(arg, type=str)
+            extra_fields_parser.add_argument(arg, type=str)
 
-    params = parser.parse_args()
+    extra_params, _ = extra_fields_parser.parse_known_args()
 
     subprogs = {
         'auth': auth,
@@ -263,4 +272,4 @@ def main():
         'predict': predict,
     }
 
-    subprogs[params.mode](params)
+    subprogs[params.mode](params, extra_fields=extra_params)
