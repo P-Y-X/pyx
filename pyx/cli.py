@@ -38,7 +38,7 @@ def _save_config():
         f.close()
 
 
-def auth(args):
+def auth(args, **kwargs):
     """
     Authorization
     """
@@ -62,7 +62,7 @@ def auth(args):
         print('Wrong token.')
 
 
-def create(args):
+def create(args, **kwargs):
     """
     Create new project
     """
@@ -224,6 +224,20 @@ def predict(args, extra_fields):
         return
 
 
+def quotas(args, extra_fields):
+    import requests
+    from urllib.parse import urljoin
+
+    headers = {'user-token': __PYX_CONFIG__["user_token"]}
+    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'quotas/'), headers=headers)
+
+    if r.status_code == 200:
+        print('Requests left: ', r.json()['requests'])
+    else:
+        print('An error occured. User is not registered or auth-token is broken. Try "pyx auth <token> first.')
+        return
+
+
 def main():
     _load_config()
     print(__PYX_CONFIG__)
@@ -248,6 +262,8 @@ def main():
     parser_predict = subparsers.add_parser('predict', help='Push current workspace to pyx.ai')
     parser_predict.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
 
+    _ = subparsers.add_parser('quotas', help='Check pyx-cloud quotas')
+
     _ = subparsers.add_parser('test', help='Run tests locally')
 
     params, unknown = parser.parse_known_args()  # this is an 'internal' method
@@ -270,6 +286,7 @@ def main():
         'push': push,
         'pull': pull,
         'predict': predict,
+        'quotas': quotas,
     }
 
     subprogs[params.mode](params, extra_fields=extra_params)
