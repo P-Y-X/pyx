@@ -1,4 +1,6 @@
 import argparse
+import os
+import json
 
 
 __PYX_CONFIG__ = {
@@ -7,11 +9,39 @@ __PYX_CONFIG__ = {
 }
 
 
+__PYX_PROJECT_TEMPLATE__ = {
+    'project_name': '',
+    'model_id': '',
+    'category': '',
+    'author': '',
+    'license': '',
+}
+
+
+def list_available_categories():
+    import pyx
+    root_categories = os.listdir(os.path.join(os.path.dirname(pyx.__file__), 'boilerplates'))
+    for root_category in root_categories:
+        print(root_category)
+        nested_categories = os.listdir(os.path.join(os.path.dirname(pyx.__file__), 'boilerplates', root_category))
+        for nested_category in nested_categories:
+            print('-- {} ({}/{})'.format(nested_category, root_category, nested_category))
+
+
+def ensure_pyx_project(func):
+    def wrapper_fn(*args, **kwargs):
+        if not os.path.exists('pyx.json'):
+            print('Cant find pyx.json. Are you in a pyx-project directory?')
+            return False
+        pyx_project_json = json.load(open('pyx.json', 'r'))
+        return func(*args, **{**kwargs, 'pyx_project': pyx_project_json})
+    return wrapper_fn
+
+
 def _load_config():
     """
     Load JSON config from ~/.pyx/pyx.json
     """
-    import os
     import json
 
     config_path_dir = os.path.join(os.path.expanduser('~'), '.pyx')
@@ -62,49 +92,113 @@ def auth(args, **kwargs):
         print('Wrong token.')
 
 
+def list_templates(args, **kwargs):
+    """
+    List available templates
+    """
+    list_available_categories()
+
+
 def create(args, **kwargs):
     """
     Create new project
     """
     import os
+    import json
+    try:
+        print('Creating project ...')
+        os.makedirs(args.project_name)
+        os.makedirs(os.path.join(args.project_name, 'web'))
+        os.makedirs(os.path.join(args.project_name, 'models'))
+        with open(os.path.join(args.project_name, 'pyx.json'), 'w') as f:
+            pyx_project = {**__PYX_PROJECT_TEMPLATE__, 'project_name': args.project_name, 'category': args.category}
+            f.write(json.dumps(pyx_project, indent=4))
+            f.close()
+
+            print('...')
+            print('Your project is ready to use. Please go to the project folder:')
+            print('$ cd ' + args.project_name)
+
+            print('Your can also add boilerplates for your project:')
+            print('$ pyx add {framework}')
+
+    except FileExistsError:
+        print('Destination directory is already exist. Consider another name of the project.')
+
+
+@ensure_pyx_project
+def config(args, pyx_project, extra_fields, **kwargs):
+    """
+    Configure project
+    """
+    extra_fields = vars(extra_fields)
+    for k in extra_fields:
+        if k in pyx_project.keys():
+            pyx_project[k] = extra_fields[k]
+
+    with open('pyx.json', 'w') as f:
+        f.write(json.dumps(pyx_project, indent=4))
+        f.close()
+
+    print(json.dumps(pyx_project, indent=4))
+
+
+@ensure_pyx_project
+def add(args, pyx_project, **kwargs):
+    """
+    Add model to the project
+    """
+    import os
     import pyx
 
-    pyx_boilerplates_path = os.path.join(os.path.dirname(pyx.__file__), 'boilerplates', args.category)
+    pyx_boilerplate_path = os.path.join(
+        os.path.dirname(pyx.__file__), 'boilerplates',
+        pyx_project['category'],
+        args.framework
+    )
 
-    if os.path.exists(pyx_boilerplates_path):
-        print('Creating project ...')
+    if not os.path.exists(pyx_boilerplate_path):
+        pyx_boilerplate_path = os.path.join(
+            os.path.dirname(pyx.__file__), 'boilerplates', 'general',
+            args.framework
+        )
+
+    if os.path.exists(pyx_boilerplate_path):
+        print('Adding model ...')
         try:
             from shutil import copytree
-            copytree(pyx_boilerplates_path, args.project_name)
+            copytree(pyx_boilerplate_path, os.path.join('models', args.framework))
             print('...')
             print('Your boilerplate is ready to use. Please, run:')
-            print('$ cd ' + args.project_name)
+            print('$ pyx run ' + args.framework)
+            print('or :')
+            print('$ cd models/{}'.format(args.framework))
             print('$ python PYX.py')
         except FileExistsError:
             print('Destination directory is already exist. Consider another name of the project.')
-
     else:
-        print('Template {0} not found'.format(args.category))
+        print('Template for category {0} not found'.format(args.category))
 
 
-def test(*args, **kwargs):
+@ensure_pyx_project
+def test(*args, pyx_project, **kwargs):
     """
-    Test model
+    Test model / models inside the project
     """
     import os
     import time
     import numpy as np
 
-    if not os.path.exists('PYX.py'):
-        print('Cant find PYX.py. Are you in a pyx-project directory?')
-        return False
-    else:
+    print('Testing project ...')
+
+    models = os.listdir('models')
+    for model in models:
         try:
-            print('Testing project ...')
             import sys
-            sys.path.append('./')
+            sys.path.append('./models/' + model)
             from PYX import PYXImplementedModel
 
+            print('Testing model {} ...'.format(model))
             print('Initializing model ...')
             project = PYXImplementedModel()
             project.initialize()
@@ -128,6 +222,7 @@ def test(*args, **kwargs):
 
             print('....')
             print('PASSED')
+            sys.path.pop()
         except:
             print('....')
             print('An error occured.')
@@ -136,6 +231,7 @@ def test(*args, **kwargs):
         return True
 
 
+@ensure_pyx_project
 def push(args, **kwargs):
     if not args.ignore_local_test:
         if not test():
@@ -216,7 +312,7 @@ def predict(args, extra_fields):
     headers = {'user-token': __PYX_CONFIG__["user_token"]}
     r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/predict/' + framework),
                       headers=headers, json=data)
-
+    print(r.status_code, r.content)
     if r.status_code == 200:
         print('Succesfully predicted ...', r.json())
     else:
@@ -248,9 +344,16 @@ def main():
     parser_auth = subparsers.add_parser('auth', help='Auth PYX user')
     parser_auth.add_argument('user_token', type=str, help='set user token')
 
+    parser_list_templates = subparsers.add_parser('list-templates', help='List available templates')
+
     parser_create = subparsers.add_parser('create', help='Create new PYX project')
     parser_create.add_argument('project_name', type=str, help='a name of new project (e.g. resnet-test)')
     parser_create.add_argument('category', type=str, help='a category of a new project (e.g. cv/classification)')
+
+    parser_config = subparsers.add_parser('config', help='Configure PYX project')
+
+    parser_create = subparsers.add_parser('add', help='Add model to the project')
+    parser_create.add_argument('framework', type=str, help='the framework you want to add')
 
     parser_pull = subparsers.add_parser('pull', help='Pull published workspace')
     parser_pull.add_argument('model_name', type=str, help='a magic url from pyx.ai')
@@ -282,6 +385,9 @@ def main():
     subprogs = {
         'auth': auth,
         'create': create,
+        'config': config,
+        'list-templates': list_templates,
+        'add': add,
         'test': test,
         'push': push,
         'pull': pull,
