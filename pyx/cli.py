@@ -12,6 +12,7 @@ __PYX_CONFIG__ = {
 __PYX_PROJECT_TEMPLATE__ = {
     'project_name': '',
     'model_id': '',
+    'category_id': '',
     'category': '',
     'author': '',
     'license': '',
@@ -33,8 +34,40 @@ def ensure_pyx_project(func):
         if not os.path.exists('pyx.json'):
             print('Cant find pyx.json. Are you in a pyx-project directory?')
             return False
-        pyx_project_json = json.load(open('pyx.json', 'r'))
-        return func(*args, **{**kwargs, 'pyx_project': pyx_project_json})
+
+        with open(os.path.join('pyx.json'), 'r') as f:
+            pyx_project_json = json.load(f)
+            f.close()
+
+        func_output = func(*args, **{**kwargs, 'pyx_project': pyx_project_json})
+
+        with open(os.path.join('pyx.json'), 'w') as f:
+            f.write(json.dumps(pyx_project_json, indent=4))
+            f.close()
+
+        return func_output
+    return wrapper_fn
+
+
+def ensure_have_permissions(func):
+    def wrapper_fn(*args, **kwargs):
+        pyx_project = kwargs['pyx_project']
+
+        if 'model_id' not in pyx_project or len(pyx_project['model_id']) == 0:
+            print('Cant find model-id. if you have got an approval, please specify model id:')
+            print('$ pyx config --model-id <MODEL_ID>')
+            return False
+
+        # if 'category_id' not in pyx_project or len(pyx_project['category_id']) == 0:
+        #     print('Cant find category-id. if you have got an approval, please specify category id:')
+        #     print('$ pyx config --category-id <CATEGORY_ID>')
+        #     return False
+
+        # TODO: send request to pyx api
+
+        func_output = func(*args, **kwargs)
+
+        return func_output
     return wrapper_fn
 
 
@@ -136,10 +169,6 @@ def config(args, pyx_project, extra_fields, **kwargs):
         if k in pyx_project.keys():
             pyx_project[k] = extra_fields[k]
 
-    with open('pyx.json', 'w') as f:
-        f.write(json.dumps(pyx_project, indent=4))
-        f.close()
-
     print(json.dumps(pyx_project, indent=4))
 
 
@@ -191,6 +220,7 @@ def test(*args, pyx_project, **kwargs):
 
     print('Testing project ...')
 
+    pyx_project['models'] = {}
     models = os.listdir('models')
     for model in models:
         try:
@@ -208,6 +238,7 @@ def test(*args, pyx_project, **kwargs):
             print('inputs: ', project.get_input_types())
             print('....')
 
+            time_measures = []
             for i in range(10):
                 test_sample = {}
                 inputs = project.get_input_shapes()
@@ -218,7 +249,15 @@ def test(*args, pyx_project, **kwargs):
                 start = time.time()
                 _ = project.predict(test_sample)
                 end = time.time()
+                time_measures.append(end - start)
                 print('Inference time: ', end - start)
+
+            print('Mean inference time:', np.mean(time_measures))
+            pyx_project['models'][model] = {
+                'input_shapes': project.get_input_shapes(),
+                'input_types': project.get_input_types(),
+                'mean_inference_time': np.mean(time_measures),
+            }
 
             print('....')
             print('PASSED')
@@ -232,12 +271,8 @@ def test(*args, pyx_project, **kwargs):
 
 
 @ensure_pyx_project
-def push(args, **kwargs):
-    if not args.ignore_local_test:
-        if not test():
-            print('Can not submit without passing testing first.')
-            return
-
+@ensure_have_permissions
+def upload(args, pyx_project, **kwargs):
     import requests
     from urllib.parse import urljoin
     import shutil
@@ -249,20 +284,20 @@ def push(args, **kwargs):
         shutil.make_archive(os.path.join(tmpdirname, '_project'), 'zip', '.')
 
         print('Uploading data ...')
-        model_id, framework = args.model_name.split('/')
+        model_id = pyx_project['model_id']
         fileobj = open(os.path.join(tmpdirname, '_project.zip'), 'rb')
         headers = {'user-token':  __PYX_CONFIG__["user_token"]}
-        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/upload/' + framework),
+        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/upload'),
                           headers=headers,
                           files={"project_files": ("project.zip", fileobj)})
-
+        print(r.status_code)
         if r.status_code == 200:
-            print('Succesfully pushed.')
+            print('Succesfully uploaded.')
         else:
             print('An error occured.')
 
 
-def pull(args, **kwargs):
+def download(args, **kwargs):
     import requests
     from urllib.parse import urljoin
     import shutil
@@ -270,10 +305,9 @@ def pull(args, **kwargs):
     import tempfile
 
     print('Downloading data ...')
-    model_id, framework = args.model_name.split('/')
 
     headers = {'user-token':  __PYX_CONFIG__["user_token"]}
-    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/download/' + framework),
+    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'models/' + args.model_id + '/download'),
                      headers=headers, stream=True)
 
     if r.status_code == 200:
@@ -287,7 +321,7 @@ def pull(args, **kwargs):
         with open(os.path.join(tmpdirname, 'src.zip'), 'wb') as out_file:
             shutil.copyfileobj(r.raw, out_file)
 
-        shutil.unpack_archive(os.path.join(tmpdirname, 'src.zip'), model_id)
+        shutil.unpack_archive(os.path.join(tmpdirname, 'src.zip'), args.project_name)
 
         print('....')
         print('DONE')
@@ -355,12 +389,11 @@ def main():
     parser_create = subparsers.add_parser('add', help='Add model to the project')
     parser_create.add_argument('framework', type=str, help='the framework you want to add')
 
-    parser_pull = subparsers.add_parser('pull', help='Pull published workspace')
-    parser_pull.add_argument('model_name', type=str, help='a magic url from pyx.ai')
+    parser_download = subparsers.add_parser('download', help='Pull published workspace')
+    parser_download.add_argument('model_id', type=str, help='model id from pyx.ai')
+    parser_download.add_argument('project_name', type=str, help='destination project name')
 
-    parser_push = subparsers.add_parser('push', help='Push current workspace to pyx.ai')
-    parser_push.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
-    parser_push.add_argument('--ignore-local-test', default=False, type=bool, help='do not run local test')
+    parser_upload = subparsers.add_parser('upload', help='Upload current workspace to pyx.ai')
 
     parser_predict = subparsers.add_parser('predict', help='Push current workspace to pyx.ai')
     parser_predict.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
@@ -389,8 +422,8 @@ def main():
         'list-templates': list_templates,
         'add': add,
         'test': test,
-        'push': push,
-        'pull': pull,
+        'upload': upload,
+        'download': download,
         'predict': predict,
         'quotas': quotas,
     }
