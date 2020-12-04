@@ -6,7 +6,7 @@ import inquirer
 
 __PYX_CONFIG__ = {
     'api_url': 'https://beta.pyx.ai/api/',
-    'frameworks': ['pytorch', 'onnx']
+    'frameworks': ['pytorch', 'onnx'],
     # 'api_url': 'http://127.0.0.1:8888/api/'
 }
 
@@ -206,7 +206,7 @@ def create(args, **kwargs):
     """
     Create new project
     """
-    _sync_meta()
+    # _sync_meta()
     questions = [
         inquirer.List('category',
                       message="What is the category of your project?",
@@ -362,11 +362,16 @@ def publish(args, pyx_project, **kwargs):
 
     import requests
     from urllib.parse import urljoin
-    headers = {'user-token': __PYX_CONFIG__["user_token"]}
+
+    headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
     r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models'),
                       headers=headers,
-                      json=json.dumps(pyx_project))
-    print(r.status_code)
+                      json=pyx_project)
+    try:
+        print(r.status_code)
+        print(r.json())
+    except:
+        pass
 
 @ensure_pyx_project
 @ensure_have_permissions
