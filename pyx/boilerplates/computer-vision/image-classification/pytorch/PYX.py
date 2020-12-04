@@ -13,12 +13,13 @@ class PYXImplementedModel(PYXModelInterface):
         self.model = None
         self.device = device
 
-    def initialize(self) -> None:
+    def initialize(self, weights_path) -> None:
         """
         Initialize model testing interface.
         Please, construct your model here.
         """
         self.model = Model()
+        # self.model.load_state_dict(torch.load(weights_path))
         self.model.eval()
         self.model.to(self.device)
 
@@ -54,13 +55,11 @@ class PYXImplementedModel(PYXModelInterface):
         """
         return DefaultImageNetPostprocessor()
 
-    def set_weights(self) -> None:
+    def get_weights_path(self) -> str:
         """
-        Depends on the task you have, please consider setting proper model preprocessor.
-        Further information: [docs url]
+        Pytorch model path.
         """
-        # self.model.load_state_dict(torch.load('./weights.pth'))
-        pass
+        return 'model.pth'
 
     def predict(self, sample: dict) -> dict:
         """

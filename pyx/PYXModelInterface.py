@@ -13,6 +13,14 @@ class PYXModelInterface(ABC):
         pass
 
     @abstractmethod
+    def initialize(self, weights_path) -> None:
+        """
+        Load model weights.
+        Please, load model / model weights here.
+        """
+        pass
+
+    @abstractmethod
     def get_input_shapes(self) -> dict:
         """
         Depends on the task you have, please consider providing proper model shape (skipping batch-dimensions).
@@ -45,9 +53,9 @@ class PYXModelInterface(ABC):
         pass
 
     @abstractmethod
-    def set_weights(self) -> None:
+    def get_weights_path(self) -> str:
         """
-        Depends on the task you have, please consider setting proper model weights here.
+        Path to weights relative to framework folder.
         Further information: [docs url]
         """
         pass

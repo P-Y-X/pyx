@@ -18,5 +18,5 @@ class DefaultImageNetPreprocessor(DataPreprocessor):
         x_preprocessed = (x["input_image"][:3] - mean) / std
 
         return {
-            "input_image": x_preprocessed
+            "input_image": np.float32(x_preprocessed)
         }

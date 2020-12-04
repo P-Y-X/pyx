@@ -12,12 +12,12 @@ class PYXImplementedModel(PYXModelInterface):
         self.model = None
         self.device = device
 
-    def initialize(self) -> None:
+    def initialize(self, weights_path) -> None:
         """
         Initialize model testing interface.
         Please, construct your model here.
         """
-        self.model = rt.InferenceSession("./model.onnx")
+        self.model = rt.InferenceSession(weights_path)
 
     def get_input_shapes(self) -> dict:
         """
@@ -51,12 +51,12 @@ class PYXImplementedModel(PYXModelInterface):
         """
         return DefaultImageNetPostprocessor()
 
-    def set_weights(self) -> None:
+    def get_weights_path(self) -> str:
         """
-        Depends on the task you have, please consider setting proper model preprocessor.
+        ONNX model path.
         Further information: [docs url]
         """
-        pass
+        return 'model.onnx'
 
     def predict(self, sample: dict) -> dict:
         """

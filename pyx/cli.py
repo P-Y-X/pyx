@@ -300,8 +300,7 @@ def test(*args, pyx_project, **kwargs):
             print('Testing model {} ...'.format(model))
             print('Initializing model ...')
             project = PYXImplementedModel()
-            project.initialize()
-            project.set_weights()
+            project.initialize(os.path.join('./models/' + model, project.get_weights_path()))
 
             print('inputs: ', project.get_input_shapes())
             print('inputs: ', project.get_input_types())
@@ -322,10 +321,12 @@ def test(*args, pyx_project, **kwargs):
                 print('Inference time: ', end - start)
 
             print('Mean inference time:', np.mean(time_measures))
+
             pyx_project['models'][model] = {
                 'input_shapes': project.get_input_shapes(),
                 'input_types': project.get_input_types(),
                 'mean_inference_time': np.mean(time_measures),
+                'weights_path': project.get_weights_path(),
             }
 
             print('....')
