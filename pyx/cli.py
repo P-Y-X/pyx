@@ -114,7 +114,9 @@ def _load_config():
 
     if os.path.exists(config_path):
         global __PYX_CONFIG__
-        __PYX_CONFIG__ = {**__PYX_CONFIG__, **json.load(open(config_path, 'r'))}
+        with open(config_path, 'r') as f:
+            __PYX_CONFIG__ = {**__PYX_CONFIG__, **json.load(f)}
+            f.close()
 
 
 def _save_config():
@@ -206,7 +208,6 @@ def create(args, **kwargs):
     """
     Create new project
     """
-    _sync_meta()
     questions = [
         inquirer.List('category',
                       message="What is the category of your project?",
@@ -300,6 +301,7 @@ def test(*args, pyx_project, **kwargs):
             print('Testing model {} ...'.format(model))
             print('Initializing model ...')
             project = PYXImplementedModel()
+            preprocessor = project.get_preprocessor()
             project.initialize(os.path.join('./models/' + model, project.get_weights_path()))
 
             print('inputs: ', project.get_input_shapes())
@@ -314,6 +316,7 @@ def test(*args, pyx_project, **kwargs):
                 for k in inputs:
                     test_sample[k] = np.zeros(inputs[k])
 
+                test_sample = preprocessor.preprocess(test_sample)
                 start = time.time()
                 _ = project.predict(test_sample)
                 end = time.time()
@@ -331,6 +334,14 @@ def test(*args, pyx_project, **kwargs):
 
             print('....')
             print('PASSED')
+
+            del project
+            del PYXImplementedModel
+            del sys.modules["PYX"]
+
+            from gc import collect
+            collect()
+
             sys.path.pop()
         except Exception as e:
             print(e.with_traceback())
@@ -480,7 +491,8 @@ def quotas(args, extra_fields):
 
 def main():
     _load_config()
-    # print(__PYX_CONFIG__)
+    _sync_meta()
+
     parser = argparse.ArgumentParser(prog='pyx')
 
     subparsers = parser.add_subparsers(dest='mode', help='sub-command help')
@@ -538,3 +550,4 @@ def main():
     }
 
     subprogs[params.mode](params, extra_fields=extra_params)
+    _save_config()
