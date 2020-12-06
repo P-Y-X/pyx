@@ -14,7 +14,6 @@ __PYX_CONFIG__ = {
 __PYX_PROJECT_TEMPLATE__ = {
     'author': '',
     'project_name': '',
-    'model_id': '',
     'category_id': '',
     'name': '',
     'price': '',
@@ -26,7 +25,7 @@ __PYX_PROJECT_TEMPLATE__ = {
 }
 
 
-def list_available_categories():
+def list_available_boilerplates():
     import pyx
     root_categories = os.listdir(os.path.join(os.path.dirname(pyx.__file__), 'boilerplates'))
     for root_category in root_categories:
@@ -64,11 +63,6 @@ def ensure_have_permissions(func):
             print('Cant find id. if you have got an approval, please specify model id:')
             print('$ pyx config --id <MODEL_ID>')
             return False
-
-        # if 'category_id' not in pyx_project or len(pyx_project['category_id']) == 0:
-        #     print('Cant find category-id. if you have got an approval, please specify category id:')
-        #     print('$ pyx config --category-id <CATEGORY_ID>')
-        #     return False
 
         # TODO: send request to pyx api
 
@@ -201,7 +195,7 @@ def list_templates(args, **kwargs):
     """
     List available templates
     """
-    list_available_categories()
+    list_available_boilerplates()
 
 
 def create(args, **kwargs):
@@ -360,8 +354,8 @@ def publish(args, pyx_project, **kwargs):
     questions = [
         inquirer.Text('name',
                       message="Please, specify model name", default=pyx_project['name']),
-        inquirer.Text('paper',
-                      message="Please, specify paper url if you have one", default=pyx_project['paper']),
+        inquirer.Text('paper_url',
+                      message="Please, specify paper url if you have one", default=pyx_project['paper_url']),
         inquirer.Text('dataset',
                       message="Please, specify paper dataset you used", default=pyx_project['dataset']),
         inquirer.Text('license',
@@ -489,9 +483,30 @@ def quotas(args, extra_fields):
         return
 
 
+def users_remote_models(args, extra_fields):
+    import requests
+    from urllib.parse import urljoin
+
+    headers = {'user-token': __PYX_CONFIG__["user_token"]}
+    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'users/'), headers=headers)
+
+    if r.status_code == 200:
+        if len(r.json()['orders']) > 0:
+            print('My orders:')
+            for i in r.json()['orders']:
+                print('* (id: {id}) {license} {name}'.format(**i))
+        if len(r.json()['models']) > 0:
+            print('My models:')
+            for i in r.json()['models']:
+                print('* (id: {id}) {license} {name} (approved: {approved}) (published: {published})'.format(**i))
+    else:
+        print('An error occured. User is not registered or auth-token is broken. Try "pyx auth <token> first.')
+        return
+
+
 def main():
     _load_config()
-    _sync_meta()
+    # _sync_meta()
 
     parser = argparse.ArgumentParser(prog='pyx')
 
@@ -519,6 +534,7 @@ def main():
     parser_predict.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
 
     _ = subparsers.add_parser('quotas', help='Check pyx-cloud quotas')
+    _ = subparsers.add_parser('my-remote-models', help='List available models from PYX')
 
     _ = subparsers.add_parser('test', help='Run tests locally')
 
@@ -547,6 +563,7 @@ def main():
         'download': download,
         'predict': predict,
         'quotas': quotas,
+        'my-remote-models': users_remote_models,
     }
 
     subprogs[params.mode](params, extra_fields=extra_params)
