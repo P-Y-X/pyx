@@ -60,9 +60,9 @@ def ensure_have_permissions(func):
     def wrapper_fn(*args, **kwargs):
         pyx_project = kwargs['pyx_project']
 
-        if 'model_id' not in pyx_project or len(pyx_project['model_id']) == 0:
-            print('Cant find model-id. if you have got an approval, please specify model id:')
-            print('$ pyx config --model-id <MODEL_ID>')
+        if 'id' not in pyx_project:
+            print('Cant find id. if you have got an approval, please specify model id:')
+            print('$ pyx config --id <MODEL_ID>')
             return False
 
         # if 'category_id' not in pyx_project or len(pyx_project['category_id']) == 0:
@@ -206,7 +206,7 @@ def create(args, **kwargs):
     """
     Create new project
     """
-    # _sync_meta()
+    _sync_meta()
     questions = [
         inquirer.List('category',
                       message="What is the category of your project?",
@@ -338,6 +338,9 @@ def test(*args, pyx_project, **kwargs):
             print('An error occured.')
             return False
 
+    from glob import glob
+    pyx_project['web'] = [os.path.relpath(i, './web') for i in glob('./web/**', recursive=True) if os.path.isfile(i)]
+
     return True
 
 
@@ -371,8 +374,11 @@ def publish(args, pyx_project, **kwargs):
     try:
         print(r.status_code)
         print(r.json())
+        for k in r.json():
+            pyx_project[k] = r.json()[k]
     except:
         pass
+
 
 @ensure_pyx_project
 @ensure_have_permissions
@@ -388,7 +394,7 @@ def upload(args, pyx_project, **kwargs):
         shutil.make_archive(os.path.join(tmpdirname, '_project'), 'zip', '.')
 
         print('Uploading data ...')
-        model_id = pyx_project['model_id']
+        model_id = str(pyx_project['id'])
         fileobj = open(os.path.join(tmpdirname, '_project.zip'), 'rb')
         headers = {'user-token':  __PYX_CONFIG__["user_token"]}
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/upload'),
