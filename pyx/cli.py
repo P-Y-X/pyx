@@ -8,6 +8,7 @@ import inquirer
 __PYX_CONFIG__ = {
     'api_url': 'https://beta.pyx.ai/api/',
     'frameworks': ['pytorch', 'onnx'],
+    'required_fields': ['name', 'paper_url', 'dataset', 'license', 'description_short', 'description_full'],
     # 'api_url': 'http://127.0.0.1:8888/api/'
 }
 
@@ -16,13 +17,6 @@ __PYX_PROJECT_TEMPLATE__ = {
     'author': '',
     'project_name': '',
     'category_id': '',
-    'name': '',
-    'price': '',
-    'paper': '',
-    'description_short': '',
-    'description_full': '',
-    'dataset': '',
-    'license': '',
 }
 
 
@@ -74,6 +68,10 @@ def ensure_have_permissions(func):
 
 
 def _sync_meta():
+    if 'categories' in __PYX_CONFIG__:
+        # TODO: invalidate sometime
+        return
+
     import requests
     from urllib.parse import urljoin
 
@@ -253,7 +251,7 @@ def create(args, **kwargs):
 
 
 @ensure_pyx_project
-def config(args, pyx_project, extra_fields, **kwargs):
+def configure(args, pyx_project, extra_fields, **kwargs):
     """
     Configure project
     """
@@ -261,6 +259,28 @@ def config(args, pyx_project, extra_fields, **kwargs):
     for k in extra_fields:
         if k in pyx_project.keys():
             pyx_project[k] = extra_fields[k]
+
+    for k in __PYX_CONFIG__['required_fields']:
+        if k not in pyx_project:
+            pyx_project[k] = ''
+
+    questions = [
+        inquirer.Text('name',
+                      message="Please, specify model name", default=pyx_project['name']),
+        inquirer.Text('paper_url',
+                      message="Please, specify paper url if you have one", default=pyx_project['paper_url']),
+        inquirer.Text('dataset',
+                      message="Please, specify paper dataset you used", default=pyx_project['dataset']),
+        inquirer.Text('license',
+                      message="Please, specify license", default=pyx_project['license']),
+        inquirer.Editor('description_short', message="Please, specify short description of your model",
+                        default=pyx_project['description_short']),
+        inquirer.Editor('description_full', message="Please, specify short detailed of your model",
+                        default=pyx_project['description_full']),
+    ]
+    answers = inquirer.prompt(questions)
+    for k in answers:
+        pyx_project[k] = answers[k]
 
     print(json.dumps(pyx_project, indent=4))
 
@@ -352,31 +372,23 @@ def test(*args, pyx_project, **kwargs):
 
 @ensure_pyx_project
 def publish(args, pyx_project, **kwargs):
-    questions = [
-        inquirer.Text('name',
-                      message="Please, specify model name", default=pyx_project['name']),
-        inquirer.Text('paper_url',
-                      message="Please, specify paper url if you have one", default=pyx_project['paper_url']),
-        inquirer.Text('dataset',
-                      message="Please, specify paper dataset you used", default=pyx_project['dataset']),
-        inquirer.Text('license',
-                      message="Please, specify license", default=pyx_project['license']),
-        inquirer.Editor('description_short', message="Please, specify short description of your model",
-                        default=pyx_project['description_short']),
-        inquirer.Editor('description_full', message="Please, specify short detailed of your model",
-                        default=pyx_project['description_full']),
-    ]
-    answers = inquirer.prompt(questions)
-    for k in answers:
-        pyx_project[k] = answers[k]
-
     import requests
     from urllib.parse import urljoin
 
-    headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
-    r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models'),
-                      headers=headers,
-                      json=pyx_project)
+    for k in __PYX_CONFIG__['required_fields']:
+        if k not in pyx_project or len(pyx_project[k]) == 0:
+            print('Required fields is missing. Consider configuring your project:')
+            print('$ pyx configure')
+            return
+
+    if 'id' in pyx_project:
+        print('Updating project:')
+        headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
+        r = requests.put(urljoin(__PYX_CONFIG__["api_url"], 'models'), headers=headers, json=pyx_project)
+    else:
+        headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
+        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models'), headers=headers, json=pyx_project)
+
     try:
         print(r.status_code)
         print(r.json())
@@ -462,7 +474,7 @@ def predict(args, extra_fields):
     headers = {'user-token': __PYX_CONFIG__["user_token"]}
     r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/predict/' + framework),
                       headers=headers, json=data)
-
+    print(r.json())
     if r.status_code == 200:
         print('Succesfully predicted ...', r.json())
     else:
@@ -507,7 +519,7 @@ def users_remote_models(args, extra_fields):
 
 def main():
     _load_config()
-    # _sync_meta()
+    _sync_meta()
 
     parser = argparse.ArgumentParser(prog='pyx')
 
@@ -519,7 +531,7 @@ def main():
     parser_list_templates = subparsers.add_parser('list-templates', help='List available templates')
 
     parser_create = subparsers.add_parser('create', help='Create a new PYX project (using wizard)')
-    parser_config = subparsers.add_parser('config', help='Create a config file for a PYX project')
+    parser_configure = subparsers.add_parser('configure', help='Create a config file for a PYX project')
 
     parser_create = subparsers.add_parser('add', help='Add a model to a project')
     parser_create.add_argument('framework', type=str, help='the framework you want to add')
@@ -560,7 +572,7 @@ def main():
     subprogs = {
         'auth': auth,
         'create': create,
-        'config': config,
+        'configure': configure,
         'list-templates': list_templates,
         'add': add,
         'test': test,
