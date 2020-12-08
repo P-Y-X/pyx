@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 import json
 import inquirer
 
@@ -60,7 +61,7 @@ def ensure_have_permissions(func):
         pyx_project = kwargs['pyx_project']
 
         if 'id' not in pyx_project:
-            print('Cant find id. if you have got an approval, please specify model id:')
+            print('Can not find the id. If you have an approval please specify the model id:')
             print('$ pyx config --id <MODEL_ID>')
             return False
 
@@ -517,17 +518,17 @@ def main():
 
     parser_list_templates = subparsers.add_parser('list-templates', help='List available templates')
 
-    parser_create = subparsers.add_parser('create', help='Create new PYX project (with wizard)')
-    parser_config = subparsers.add_parser('config', help='Configure PYX project')
+    parser_create = subparsers.add_parser('create', help='Create a new PYX project (using wizard)')
+    parser_config = subparsers.add_parser('config', help='Create a config file for a PYX project')
 
-    parser_create = subparsers.add_parser('add', help='Add model to the project')
+    parser_create = subparsers.add_parser('add', help='Add a model to a project')
     parser_create.add_argument('framework', type=str, help='the framework you want to add')
 
-    parser_download = subparsers.add_parser('download', help='Pull published workspace')
+    parser_download = subparsers.add_parser('download', help='Pull a published workspace')
     parser_download.add_argument('model_id', type=str, help='model id from pyx.ai')
     parser_download.add_argument('project_name', type=str, help='destination project name')
 
-    parser_publish = subparsers.add_parser('publish', help='Publish project to pyx.ai')
+    parser_publish = subparsers.add_parser('publish', help='Publish a project to pyx.ai')
     parser_upload = subparsers.add_parser('upload', help='Upload current workspace to pyx.ai')
 
     parser_predict = subparsers.add_parser('predict', help='Push current workspace to pyx.ai')
@@ -537,6 +538,11 @@ def main():
     _ = subparsers.add_parser('my-remote-models', help='List available models from PYX')
 
     _ = subparsers.add_parser('test', help='Run tests locally')
+
+    # print help
+    if len(sys.argv) < 2:
+        parser.print_usage()
+        sys.exit(1)
 
     params, unknown = parser.parse_known_args()  # this is an 'internal' method
     # which returns 'parsed', the same as what parse_args() would return
