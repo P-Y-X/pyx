@@ -364,9 +364,6 @@ def test(*args, pyx_project, **kwargs):
             print('An error occured.')
             return False
 
-    from glob import glob
-    pyx_project['web'] = [os.path.relpath(i, './web') for i in glob('./web/**', recursive=True) if os.path.isfile(i)]
-
     return True
 
 
@@ -376,15 +373,18 @@ def publish(args, pyx_project, **kwargs):
     from urllib.parse import urljoin
 
     for k in __PYX_CONFIG__['required_fields']:
-        if k not in pyx_project or len(pyx_project[k]) == 0:
+        if k not in pyx_project:
             print('Required fields is missing. Consider configuring your project:')
             print('$ pyx configure')
             return
 
+    from glob import glob
+    pyx_project['web'] = [os.path.relpath(i, './web') for i in glob('./web/**', recursive=True) if os.path.isfile(i)]
+
     if 'id' in pyx_project:
         print('Updating project:')
         headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
-        r = requests.put(urljoin(__PYX_CONFIG__["api_url"], 'models'), headers=headers, json=pyx_project)
+        r = requests.put(urljoin(__PYX_CONFIG__["api_url"], 'models/' + str(pyx_project['id'])), headers=headers, json=pyx_project)
     else:
         headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models'), headers=headers, json=pyx_project)
