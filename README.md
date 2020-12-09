@@ -21,14 +21,10 @@ pip install https://github.com/P-Y-X/pyx
     * project name
     * ml framework
 
-    Then go to the project folder:
-    ```bash
-    > cd <project_name>
-    ```
-
 2. (Optional) You can add a boilerplate code for your model
 
     ```bash
+    > cd <project_name>
     > pyx add <template_name>
     ```
     The command will create a model directory with the corresponding boilerplate code. You can run it locally:
@@ -54,6 +50,24 @@ pip install https://github.com/P-Y-X/pyx
     > pyx publish
     ```
 
+## Get a model from PYX cloud
+
+Choose a model from the [PYX model shop](https://beta.pyx.ai/shop). If it is already available use pyx utility to download the model. 
+
+```bash
+pyx download <model_id> <model_name>
+```
+
+Where `model_id` could be found on the model's page. 
+Then you can test the model locally:
+
+```bash
+cd <project_name>
+pyx run <framework> --input <sample>
+```
+
+If model is not available yet you can buy it. Then it will be accessible for downloading.
+
 ## License
 
-MIT.
+MIT
