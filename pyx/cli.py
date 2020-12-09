@@ -368,6 +368,65 @@ def test(*args, pyx_project, **kwargs):
 
 
 @ensure_pyx_project
+def run_locally(args, pyx_project, extra_fields):
+    import os
+    import numpy as np
+
+    def preload_image(input_image_url):
+        """
+        Load RGB image with cv2
+        """
+        import cv2
+
+        image = cv2.imread(input_image_url, cv2.IMREAD_ANYCOLOR)
+        image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
+        image = np.array(image)
+
+        """
+        TODO: handle 16bit
+        """
+        rgba_image = image.transpose(2, 0, 1) / 255.0
+        return rgba_image
+
+    """
+    TODO: write loader for different input types.
+    """
+    PRELOADERS = {
+        'image': preload_image,
+    }
+
+    framework = args.framework
+
+    import sys
+    sys.path.append('./models/' + framework)
+    from PYX import PYXImplementedModel
+
+    print('Running model {} ...'.format(framework))
+    print('Initializing model ...')
+    project = PYXImplementedModel()
+    preprocessor = project.get_preprocessor()
+    postprocessor = project.get_postprocessor()
+    project.initialize(os.path.join('./models/' + framework, project.get_weights_path()))
+
+    print('inputs: ', project.get_input_shapes())
+    print('inputs: ', project.get_input_types())
+    print('....')
+
+    data = {}
+
+    extra_fields = vars(extra_fields)
+    for k in project.get_input_types():
+        print('Value for {} is {}'.format(k, extra_fields[k]))
+        data[k] = PRELOADERS[project.get_input_types()[k]](extra_fields[k])
+
+    test_sample = preprocessor.preprocess(data)
+    y_pred = project.predict(test_sample)
+    inference_result = postprocessor.postprocess(y_pred)
+
+    print('Inference result: ', inference_result)
+
+
+@ensure_pyx_project
 def publish(args, pyx_project, **kwargs):
     import requests
     from urllib.parse import urljoin
@@ -455,7 +514,7 @@ def download(args, **kwargs):
         print('DONE')
 
 
-def predict(args, extra_fields):
+def cloud_run(args, extra_fields):
     import requests
     from urllib.parse import urljoin
 
@@ -476,7 +535,7 @@ def predict(args, extra_fields):
                       headers=headers, json=data)
     print(r.json())
     if r.status_code == 200:
-        print('Succesfully predicted ...', r.json())
+        print('Success ...', r.json())
     else:
         print('An error occured.')
         return
@@ -543,8 +602,11 @@ def main():
     parser_publish = subparsers.add_parser('publish', help='Publish a project to pyx.ai')
     parser_upload = subparsers.add_parser('upload', help='Upload current workspace to pyx.ai')
 
-    parser_predict = subparsers.add_parser('predict', help='Push current workspace to pyx.ai')
-    parser_predict.add_argument('model_name', type=str, help='a magic url from pyx.ai (model-id/framework)')
+    parser_cloud_run = subparsers.add_parser('cloud-run', help='Run model using pyx.ai cloud')
+    parser_cloud_run.add_argument('model_name', type=str, help='a model path from pyx.ai (model-id/framework)')
+
+    parser_run = subparsers.add_parser('run', help='Perform inference locally')
+    parser_run.add_argument('framework', type=str, help='framework to perform inferene on')
 
     _ = subparsers.add_parser('quotas', help='Check pyx-cloud quotas')
     _ = subparsers.add_parser('my-remote-models', help='List available models from PYX')
@@ -579,7 +641,8 @@ def main():
         'publish': publish,
         'upload': upload,
         'download': download,
-        'predict': predict,
+        'cloud-run': cloud_run,
+        'run': run_locally,
         'quotas': quotas,
         'my-remote-models': users_remote_models,
     }
