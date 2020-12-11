@@ -6,10 +6,10 @@ import inquirer
 
 
 __PYX_CONFIG__ = {
-    # 'api_url': 'https://beta.pyx.ai/api/',
+    'api_url': 'https://beta.pyx.ai/api/',
     'frameworks': ['pytorch', 'onnx'],
     'required_fields': ['name', 'paper_url', 'dataset', 'license', 'description_short', 'description_full'],
-    'api_url': 'http://127.0.0.1:8888/api/'
+    # 'api_url': 'http://127.0.0.1:8888/api/'
 }
 
 
@@ -462,10 +462,15 @@ def download(args, **kwargs):
     import os
     import tempfile
 
+    version = 'latest'
+    model_id = args.model_id
+    if model_id.find(':') != -1:
+        model_id, version = model_id.split(':')
+
     print('Downloading data ...')
 
     headers = {'user-token':  __PYX_CONFIG__["user_token"]}
-    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'models/' + args.model_id + '/download'),
+    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/download/' + version),
                      headers=headers, stream=True)
 
     if r.status_code == 200:
