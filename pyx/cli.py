@@ -6,10 +6,10 @@ import inquirer
 
 
 __PYX_CONFIG__ = {
-    'api_url': 'https://beta.pyx.ai/api/',
+    # 'api_url': 'https://beta.pyx.ai/api/',
     'frameworks': ['pytorch', 'onnx'],
     'required_fields': ['name', 'paper_url', 'dataset', 'license', 'description_short', 'description_full'],
-    # 'api_url': 'http://127.0.0.1:8888/api/'
+    'api_url': 'http://127.0.0.1:8888/api/'
 }
 
 
@@ -18,16 +18,6 @@ __PYX_PROJECT_TEMPLATE__ = {
     'project_name': '',
     'category_id': '',
 }
-
-
-def list_available_boilerplates():
-    import pyx
-    root_categories = os.listdir(os.path.join(os.path.dirname(pyx.__file__), 'boilerplates'))
-    for root_category in root_categories:
-        print(root_category)
-        nested_categories = os.listdir(os.path.join(os.path.dirname(pyx.__file__), 'boilerplates', root_category))
-        for nested_category in nested_categories:
-            print('-- {} ({}/{})'.format(nested_category, root_category, nested_category))
 
 
 def ensure_pyx_project(func):
@@ -190,17 +180,15 @@ def auth(args, **kwargs):
         print('Wrong token.')
 
 
-def list_templates(args, **kwargs):
-    """
-    List available templates
-    """
-    list_available_boilerplates()
-
-
-def create(args, **kwargs):
+def create(args, unknown, **kwargs):
     """
     Create new project
     """
+
+    project_name = None
+    if len(unknown) == 1:
+        project_name = unknown[0]
+
     questions = [
         inquirer.List('category',
                       message="What is the category of your project?",
@@ -211,7 +199,8 @@ def create(args, **kwargs):
                       choices=_get_category_choices,
                       ),
         inquirer.Text('project_name',
-                      message="Please, specify project name"
+                      message="Please, specify project name",
+                      default=project_name,
                       ),
         inquirer.Checkbox('frameworks',
                           message="Prepare boilerplates for specific frameworks",
@@ -231,6 +220,8 @@ def create(args, **kwargs):
         os.makedirs(project_name)
         os.makedirs(os.path.join(project_name, 'web'))
         os.makedirs(os.path.join(project_name, 'models'))
+        os.makedirs(os.path.join(project_name, 'testing-data'))
+
         with open(os.path.join(project_name, 'pyx.json'), 'w') as f:
             pyx_project = {**__PYX_PROJECT_TEMPLATE__, 'project_name': project_name, 'category_id': category_id}
             f.write(json.dumps(pyx_project, indent=4))
@@ -242,6 +233,12 @@ def create(args, **kwargs):
 
             print('Your can also add boilerplates for your project:')
             print('$ pyx add {framework}')
+
+            print('Please, place testing samples to:')
+            print('{}/testing-data'.format(project_name))
+
+            print('If you want to attach any images / gifs, place them to:')
+            print('{}/web'.format(project_name))
 
             for framework in frameworks:
                 _add_framework(project_name, category_id, framework)
@@ -310,48 +307,35 @@ def test(*args, pyx_project, **kwargs):
     for model in models:
         try:
             import sys
+            import tempfile
             sys.path.append('./models/' + model)
-            from PYX import PYXImplementedModel
+            from PYX import get_weight_paths, predict
 
             print('Testing model {} ...'.format(model))
             print('Initializing model ...')
-            project = PYXImplementedModel()
-            preprocessor = project.get_preprocessor()
-            project.initialize(os.path.join('./models/' + model, project.get_weights_path()))
-
-            print('inputs: ', project.get_input_shapes())
-            print('inputs: ', project.get_input_types())
-            print('....')
+            weight_paths = {i: os.path.join('./models/' + model, k) for i, k in get_weight_paths().items()}
+            print(weight_paths)
 
             time_measures = []
             for i in range(10):
-                test_sample = {}
-                inputs = project.get_input_shapes()
-
-                for k in inputs:
-                    test_sample[k] = np.zeros(inputs[k])
-
-                test_sample = preprocessor.preprocess(test_sample)
-                start = time.time()
-                _ = project.predict(test_sample)
-                end = time.time()
-                time_measures.append(end - start)
-                print('Inference time: ', end - start)
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    start = time.time()
+                    predict('./testing-data', tmpdirname, weight_paths, 'cuda')
+                    end = time.time()
+                    time_measures.append(end - start)
+                    print('Inference time: ', end - start)
 
             print('Mean inference time:', np.mean(time_measures))
 
             pyx_project['models'][model] = {
-                'input_shapes': project.get_input_shapes(),
-                'input_types': project.get_input_types(),
+                'weight_paths': get_weight_paths(),
                 'mean_inference_time': np.mean(time_measures),
-                'weights_path': project.get_weights_path(),
             }
 
             print('....')
             print('PASSED')
 
-            del project
-            del PYXImplementedModel
+            del get_weight_paths, predict
             del sys.modules["PYX"]
 
             from gc import collect
@@ -368,62 +352,49 @@ def test(*args, pyx_project, **kwargs):
 
 
 @ensure_pyx_project
-def run_locally(args, pyx_project, extra_fields):
+def run_locally(args, pyx_project, extra_fields, **kwargs):
     import os
-    import numpy as np
-
-    def preload_image(input_image_url):
-        """
-        Load RGB image with cv2
-        """
-        import cv2
-
-        image = cv2.imread(input_image_url, cv2.IMREAD_ANYCOLOR)
-        image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
-        image = np.array(image)
-
-        """
-        TODO: handle 16bit
-        """
-        rgba_image = image.transpose(2, 0, 1) / 255.0
-        return rgba_image
-
-    """
-    TODO: write loader for different input types.
-    """
-    PRELOADERS = {
-        'image': preload_image,
-    }
+    import time
+    import sys
 
     framework = args.framework
+    input_dir = args.input_dir
+    output_dir = args.output_dir
 
-    import sys
-    sys.path.append('./models/' + framework)
-    from PYX import PYXImplementedModel
+    os.makedirs(output_dir, exist_ok=True)
 
-    print('Running model {} ...'.format(framework))
-    print('Initializing model ...')
-    project = PYXImplementedModel()
-    preprocessor = project.get_preprocessor()
-    postprocessor = project.get_postprocessor()
-    project.initialize(os.path.join('./models/' + framework, project.get_weights_path()))
+    try:
+        sys.path.append('./models/' + framework)
+        from PYX import get_weight_paths, predict
 
-    print('inputs: ', project.get_input_shapes())
-    print('inputs: ', project.get_input_types())
-    print('....')
+        print('Testing model {} ...'.format(framework))
+        print('Initializing model ...')
+        weight_paths = {i: os.path.join('./models/' + framework, k) for i, k in get_weight_paths().items()}
+        print(weight_paths)
 
-    data = {}
+        start = time.time()
+        completed = predict(input_dir, output_dir, weight_paths, 'cuda')
+        if not completed:
+            raise AssertionError
 
-    extra_fields = vars(extra_fields)
-    for k in project.get_input_types():
-        print('Value for {} is {}'.format(k, extra_fields[k]))
-        data[k] = PRELOADERS[project.get_input_types()[k]](extra_fields[k])
+        end = time.time()
+        print('Inference time: ', end - start)
 
-    test_sample = preprocessor.preprocess(data)
-    y_pred = project.predict(test_sample)
-    inference_result = postprocessor.postprocess(y_pred)
+        print('....')
+        print('PASSED')
 
-    print('Inference result: ', inference_result)
+        del get_weight_paths, predict
+        del sys.modules["PYX"]
+
+        from gc import collect
+        collect()
+
+        sys.path.pop()
+    except Exception as e:
+        print(e.with_traceback())
+        print('....')
+        print('An error occured.')
+        return False
 
 
 @ensure_pyx_project
@@ -514,7 +485,7 @@ def download(args, **kwargs):
         print('DONE')
 
 
-def cloud_run(args, extra_fields):
+def cloud_run(args, extra_fields, **kwargs):
     import requests
     from urllib.parse import urljoin
 
@@ -541,7 +512,7 @@ def cloud_run(args, extra_fields):
         return
 
 
-def quotas(args, extra_fields):
+def quotas(args, extra_fields, **kwargs):
     import requests
     from urllib.parse import urljoin
 
@@ -555,7 +526,7 @@ def quotas(args, extra_fields):
         return
 
 
-def users_remote_models(args, extra_fields):
+def users_remote_models(args, extra_fields, **kwargs):
     import requests
     from urllib.parse import urljoin
 
@@ -587,8 +558,6 @@ def main():
     parser_auth = subparsers.add_parser('auth', help='Auth PYX user')
     parser_auth.add_argument('user_token', type=str, help='set user token')
 
-    parser_list_templates = subparsers.add_parser('list-templates', help='List available templates')
-
     parser_create = subparsers.add_parser('create', help='Create a new PYX project (using wizard)')
     parser_configure = subparsers.add_parser('configure', help='Create a config file for a PYX project')
 
@@ -603,10 +572,14 @@ def main():
     parser_upload = subparsers.add_parser('upload', help='Upload current workspace to pyx.ai')
 
     parser_cloud_run = subparsers.add_parser('cloud-run', help='Run model using pyx.ai cloud')
-    parser_cloud_run.add_argument('model_name', type=str, help='a model path from pyx.ai (model-id/framework)')
+    parser_cloud_run.add_argument('model_name', type=str, help='a model path from pyx.ai (model-id/framework:version)')
+    parser_cloud_run.add_argument('input_dir', type=str, help='directory with input samples')
+    parser_cloud_run.add_argument('output_dir', type=str, help='directory with results')
 
     parser_run = subparsers.add_parser('run', help='Perform inference locally')
-    parser_run.add_argument('framework', type=str, help='framework to perform inferene on')
+    parser_run.add_argument('framework', type=str, help='framework to perform inference on')
+    parser_run.add_argument('input_dir', type=str, help='directory with input samples')
+    parser_run.add_argument('output_dir', type=str, help='directory with results')
 
     _ = subparsers.add_parser('quotas', help='Check pyx-cloud quotas')
     _ = subparsers.add_parser('my-remote-models', help='List available models from PYX')
@@ -635,7 +608,6 @@ def main():
         'auth': auth,
         'create': create,
         'configure': configure,
-        'list-templates': list_templates,
         'add': add,
         'test': test,
         'publish': publish,
@@ -647,5 +619,5 @@ def main():
         'my-remote-models': users_remote_models,
     }
 
-    subprogs[params.mode](params, extra_fields=extra_params)
+    subprogs[params.mode](params, extra_fields=extra_params, unknown=unknown)
     _save_config()

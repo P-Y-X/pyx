@@ -1,78 +1,49 @@
-from pyx import PYXModelInterface, DataPreprocessor, PredictionPostprocessor
-
 from model import Model
-from preprocessor import DefaultImageNetPreprocessor
-from postprocessor import DefaultImageNetPostprocessor
-
-import torch
+from typing import Dict
 
 
-class PYXImplementedModel(PYXModelInterface):
-    def __init__(self, device='cuda'):
-        super().__init__()
-        self.model = None
-        self.device = device
+def get_weight_paths() -> Dict[str, str]:
+    """
+    Return model weights relative to framework directory
+    """
+    return {}
 
-    def initialize(self, weights_path) -> None:
-        """
-        Initialize model testing interface.
-        Please, construct your model here.
-        """
-        self.model = Model()
-        # self.model.load_state_dict(torch.load(weights_path))
-        self.model.eval()
-        self.model.to(self.device)
 
-    def get_input_shapes(self) -> dict:
-        """
-        Depends on the task you have, please consider providing proper model shape (skipping batch-dimension).
-        Further information: [docs url]
-        """
-        return {
-            "input_image": [3, 224, 224],
-        }
+def predict(input_directory: str, output_directory: str, weight_paths: Dict[str, str], device: str) -> bool:
+    """
+    Using your model, perform inference.
+    Further information: [docs url]
+    """
+    from glob import glob
+    import torch
+    import numpy as np
+    import os
+    import cv2
 
-    def get_input_types(self) -> dict:
-        """
-        Depends on the task you have, please consider providing proper model types.
-        Further information: [docs url]
-        """
-        return {
-            "input_image": 'image',
-        }
+    model = Model()
+    # model.load_state_dict(torch.load(weight_paths['model']))
+    model = model.to(device)
 
-    def get_preprocessor(self) -> DataPreprocessor:
-        """
-        Depends on the task you have, please consider providing proper model preprocessor.
-        Further information: [docs url]
-        """
-        return DefaultImageNetPreprocessor()
+    input_files = glob(os.path.join(input_directory, '*'))
 
-    def get_postprocessor(self) -> PredictionPostprocessor:
-        """
-        Depends on the task you have, please consider providing proper prediction postprocessor.
-        Further information: [docs url]
-        """
-        return DefaultImageNetPostprocessor()
+    for input_file in input_files:
+        img = cv2.imread(input_file, cv2.IMREAD_COLOR)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = cv2.resize(img, (224, 224))
+        img = img.transpose(2, 0, 1) / 255.0
+        mean = np.array([0.485, 0.456, 0.406])[:, np.newaxis, np.newaxis]
+        std = np.array([0.229, 0.224, 0.225])[:, np.newaxis, np.newaxis]
 
-    def get_weights_path(self) -> str:
-        """
-        Pytorch model path.
-        """
-        return 'model.pth'
+        x_preprocessed = torch.FloatTensor((img - mean) / std).unsqueeze(0).to(device)
 
-    def predict(self, sample: dict) -> dict:
-        """
-        Using your model, perform inference.
-        Further information: [docs url]
-        """
         with torch.no_grad():
-            x = torch.FloatTensor(sample['input_image']).unsqueeze(0).to(self.device)
-            y = self.model.forward(x).squeeze(0).cpu().detach().numpy()
+            y_pred = model(x_preprocessed).squeeze(0).cpu().numpy()
 
-        return {
-            "raw_output": y,
-        }
+        with open(os.path.join(output_directory, os.path.basename(input_file) + '.pred'), 'w') as f:
+            y_pred.tofile(f, sep=' ')
+            f.close()
+
+    return True
 
 
 if __name__ == '__main__':
