@@ -491,30 +491,8 @@ def download(args, **kwargs):
 
 
 def cloud_run(args, extra_fields, **kwargs):
-    import requests
-    from urllib.parse import urljoin
-
-    model_id, framework = args.model_name.split('/')
-
-    def base64_encode_file(file_to_encode):
-        import base64
-        return base64.b64encode(open(file_to_encode, 'rb').read())
-
-    data = {}
-
-    extra_fields = vars(extra_fields)
-    for k in extra_fields:
-        data[k] = base64_encode_file(extra_fields[k]).decode("utf-8")
-
-    headers = {'user-token': __PYX_CONFIG__["user_token"]}
-    r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/predict/' + framework),
-                      headers=headers, json=data)
-    print(r.json())
-    if r.status_code == 200:
-        print('Success ...', r.json())
-    else:
-        print('An error occured.')
-        return
+    # TODO: pack input_dir, send request, unpack to output_dir
+    pass
 
 
 def quotas(args, extra_fields, **kwargs):
