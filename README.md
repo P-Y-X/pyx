@@ -33,12 +33,8 @@ pip install https://github.com/P-Y-X/pyx
     > python PYX.py
     ```
 
-3. Modify the files to reflect the logic of your model.
-
-    * `model.py`
+3. Modify the `PYX.py` script to reflect the logic of your model.
     * `PYX.py`
-    * `preprocessor.py`
-    * `postprocessor.py`
 
 4. Run the local test to be sure everything is ready:
     ```bash
@@ -55,7 +51,7 @@ pip install https://github.com/P-Y-X/pyx
 Choose a model from the [PYX model shop](https://beta.pyx.ai/shop). If it is already available use pyx utility to download the model. 
 
 ```bash
-pyx download <model_id> <model_name>
+pyx download <model_id>/<model_name>:revision
 ```
 
 Where `model_id` could be found on the model's page. 
@@ -63,7 +59,7 @@ Then you can test the model locally:
 
 ```bash
 cd <project_name>
-pyx run <framework> --input <sample>
+pyx run <framework> <input_directory> <output_directory>
 ```
 
 If model is not available yet you can buy it. Then it will be accessible for downloading.
