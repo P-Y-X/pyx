@@ -492,6 +492,51 @@ def download(args, **kwargs):
 
 def cloud_run(args, extra_fields, **kwargs):
     # TODO: pack input_dir, send request, unpack to output_dir
+    import requests
+    from urllib.parse import urljoin
+    import shutil
+    import os
+    import tempfile
+
+    model_id, framework = args.model_name.split('/')
+    version = 'latest'
+    if framework.find(':') != -1:
+        framework, version = framework.split(':')
+
+    def base64_encode_file(file_to_encode):
+        import base64
+        return base64.b64encode(open(file_to_encode, 'rb').read())
+
+    def from_base64(base64_data, output_file):
+        import base64
+        with open(output_file, 'wb') as f:
+            f.write(base64.decodebytes(str.encode(base64_data)))
+            f.close()
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        print('Packing current input directory ...')
+        shutil.make_archive(os.path.join(tmpdirname, '_input_files'), 'zip', args.input_dir)
+
+        print('Uploading data ...')
+
+        data = {'input_dir': base64_encode_file((os.path.join(tmpdirname, '_input_files.zip'))).decode("utf-8")}
+
+        headers = {'user-token': __PYX_CONFIG__["user_token"]}
+        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/predict/' + framework + '/' + version),
+                          headers=headers, json=data)
+
+        print('Waiting for data to be processed...')
+        print(r.status_code)
+        if r.status_code == 200:
+            print('Succesfully predicted.')
+            print('Unpacking result ...')
+            res = r.json()
+
+            from_base64(res['output_dir'], os.path.join(tmpdirname, '_output_files.zip'))
+            shutil.unpack_archive(os.path.join(tmpdirname, '_output_files.zip'), args.output_dir)
+        else:
+            print('An error occured.')
+
     pass
 
 

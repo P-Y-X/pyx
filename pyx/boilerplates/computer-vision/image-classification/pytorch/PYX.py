@@ -27,8 +27,11 @@ def predict(input_directory: str, output_directory: str, weight_paths: Dict[str,
     input_files = glob(os.path.join(input_directory, '*'))
 
     for input_file in input_files:
+        # Read image
         img = cv2.imread(input_file, cv2.IMREAD_COLOR)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        # ImageNet preprocessing
         img = cv2.resize(img, (224, 224))
         img = img.transpose(2, 0, 1) / 255.0
         mean = np.array([0.485, 0.456, 0.406])[:, np.newaxis, np.newaxis]
