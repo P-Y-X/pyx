@@ -531,6 +531,7 @@ def cloud_run(args, extra_fields, **kwargs):
             print('Succesfully predicted.')
             print('Unpacking result ...')
             res = r.json()
+            print(res)
 
             from_base64(res['output_dir'], os.path.join(tmpdirname, '_output_files.zip'))
             shutil.unpack_archive(os.path.join(tmpdirname, '_output_files.zip'), args.output_dir)
