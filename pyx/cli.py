@@ -221,6 +221,9 @@ def create(args, unknown, **kwargs):
         os.makedirs(os.path.join(project_name, 'web'))
         os.makedirs(os.path.join(project_name, 'models'))
         os.makedirs(os.path.join(project_name, 'testing-data'))
+        with open(os.path.join(project_name, 'web/description.md'), 'w') as f:
+            f.write('# {}\n'.format(project_name))
+            f.close()
 
         with open(os.path.join(project_name, 'pyx.json'), 'w') as f:
             pyx_project = {**__PYX_PROJECT_TEMPLATE__, 'project_name': project_name, 'category_id': category_id}
@@ -253,6 +256,15 @@ def configure(args, pyx_project, extra_fields, **kwargs):
     Configure project
     """
     extra_fields = vars(extra_fields)
+
+    if os.path.exists('./web/description.md'):
+        with open('./web/description.md', 'r') as f:
+            pyx_project['description_full'] = f.read()
+            f.close()
+    else:
+        print('Please, provide web/description.md file')
+        return
+
     for k in extra_fields:
         if k in pyx_project.keys():
             pyx_project[k] = extra_fields[k]
@@ -267,13 +279,11 @@ def configure(args, pyx_project, extra_fields, **kwargs):
         inquirer.Text('paper_url',
                       message="Please, specify paper url if you have one", default=pyx_project['paper_url']),
         inquirer.Text('dataset',
-                      message="Please, specify paper dataset you used", default=pyx_project['dataset']),
+                      message="Please, specify dataset you used", default=pyx_project['dataset']),
         inquirer.Text('license',
                       message="Please, specify license", default=pyx_project['license']),
         inquirer.Editor('description_short', message="Please, specify short description of your model",
                         default=pyx_project['description_short']),
-        inquirer.Editor('description_full', message="Please, specify short detailed of your model",
-                        default=pyx_project['description_full']),
     ]
     answers = inquirer.prompt(questions)
     for k in answers:
