@@ -429,11 +429,22 @@ def publish(args, pyx_project, **kwargs):
         headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models'), headers=headers, json=pyx_project)
 
+    print('After verification you can call the following to make your listing available:')
+    print('$ pyx publish --make-available true')
+
     try:
-        print(r.status_code)
-        print(r.json())
         for k in r.json():
             pyx_project[k] = r.json()[k]
+
+        upload(args, pyx_project=pyx_project)
+
+        print('You also can upload following changes using:')
+        print('$ pyx publish')
+
+        if 'make_available' in kwargs['extra_fields']:
+            r = requests.put(urljoin(__PYX_CONFIG__["api_url"], 'models/' + str(pyx_project['id']) + '/publish'),
+                             headers=headers, json={})
+            print(r.status_code)
     except:
         pass
 
@@ -458,7 +469,7 @@ def upload(args, pyx_project, **kwargs):
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/upload'),
                           headers=headers,
                           files={"project_files": ("project.zip", fileobj)})
-        print(r.status_code)
+
         if r.status_code == 200:
             print('Succesfully uploaded.')
         else:
@@ -641,7 +652,7 @@ def main():
             # you can pass any arguments to add_argument
             extra_fields_parser.add_argument(arg, type=str)
 
-    extra_params, _ = extra_fields_parser.parse_known_args()
+    extra_params, unknown = extra_fields_parser.parse_known_args()
 
     subprogs = {
         'auth': auth,
