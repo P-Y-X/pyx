@@ -3,12 +3,16 @@ import os
 import sys
 import json
 import inquirer
+from datetime import datetime
+import requests
+from urllib.parse import urljoin
 
 
 __PYX_CONFIG__ = {
     'api_url': 'https://beta.pyx.ai/api/',
     'frameworks': ['pytorch', 'onnx'],
-    'required_fields': ['name', 'paper_url', 'dataset', 'license', 'description_short', 'description_full'],
+    'required_fields': ['name', 'paper_url', 'dataset', 'license', 'description_short', 'description_full', 'price'],
+    'last_meta_update': 0.0,
     # 'api_url': 'http://127.0.0.1:8888/api/'
 }
 
@@ -59,17 +63,20 @@ def ensure_have_permissions(func):
 
 def _sync_meta():
     if 'categories' in __PYX_CONFIG__:
-        # TODO: invalidate sometime
-        return
+        if 'last_meta_update' in __PYX_CONFIG__:
+            if datetime.timestamp(datetime.now()) - __PYX_CONFIG__['last_meta_update'] < 60 * 60:
+                # Cache for 1 hour
+                return
 
-    import requests
-    from urllib.parse import urljoin
-
+    print('Updating meta information...')
     r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'categories'))
-    categories_json = r.json()['categories']
-
-    __PYX_CONFIG__['categories'] = categories_json
-    _save_config()
+    if r.status_code == 200:
+        categories_json = r.json()['categories']
+        __PYX_CONFIG__['last_meta_update'] = datetime.timestamp(datetime.now())
+        __PYX_CONFIG__['categories'] = categories_json
+        _save_config()
+    else:
+        print('An error occurred. Please, check your connection and try again later.')
 
 
 def _get_template_path(subcategory_id):
@@ -175,8 +182,8 @@ def auth(args, **kwargs):
 
     if r.status_code == 200:
         print('Authorized.')
-        _save_config()
     else:
+        __PYX_CONFIG__['user_token'] = ''
         print('Wrong token.')
 
 
@@ -282,6 +289,8 @@ def configure(args, pyx_project, extra_fields, **kwargs):
                       message="Please, specify dataset you used", default=pyx_project['dataset']),
         inquirer.Text('license',
                       message="Please, specify license", default=pyx_project['license']),
+        inquirer.Text('price',
+                      message="Please, specify price (0.0 for free models)", default=pyx_project['price']),
         inquirer.Editor('description_short', message="Please, specify short description of your model",
                         default=pyx_project['description_short']),
     ]
@@ -355,7 +364,7 @@ def test(*args, pyx_project, **kwargs):
         except Exception as e:
             print(e.with_traceback())
             print('....')
-            print('An error occured.')
+            print('An error occurred.')
             return False
 
     return True
@@ -403,7 +412,7 @@ def run_locally(args, pyx_project, extra_fields, **kwargs):
     except Exception as e:
         print(e.with_traceback())
         print('....')
-        print('An error occured.')
+        print('An error occurred.')
         return False
 
 
@@ -471,9 +480,9 @@ def upload(args, pyx_project, **kwargs):
                           files={"project_files": ("project.zip", fileobj)})
 
         if r.status_code == 200:
-            print('Succesfully uploaded.')
+            print('Successfully uploaded.')
         else:
-            print('An error occured.')
+            print('An error occurred.')
 
 
 def download(args, **kwargs):
@@ -495,9 +504,9 @@ def download(args, **kwargs):
                      headers=headers, stream=True)
 
     if r.status_code == 200:
-        print('Succesfully pulled ...')
+        print('Successfully pulled ...')
     else:
-        print('An error occured.')
+        print('An error occurred.')
         return
 
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -512,7 +521,6 @@ def download(args, **kwargs):
 
 
 def cloud_run(args, extra_fields, **kwargs):
-    # TODO: pack input_dir, send request, unpack to output_dir
     import requests
     from urllib.parse import urljoin
     import shutil
@@ -549,7 +557,7 @@ def cloud_run(args, extra_fields, **kwargs):
         print('Waiting for data to be processed...')
         print(r.status_code)
         if r.status_code == 200:
-            print('Succesfully predicted.')
+            print('Successfully predicted.')
             print('Unpacking result ...')
             res = r.json()
             print(res)
@@ -557,7 +565,7 @@ def cloud_run(args, extra_fields, **kwargs):
             from_base64(res['output_dir'], os.path.join(tmpdirname, '_output_files.zip'))
             shutil.unpack_archive(os.path.join(tmpdirname, '_output_files.zip'), args.output_dir)
         else:
-            print('An error occured.')
+            print('An error occurred.')
 
     pass
 
@@ -572,7 +580,7 @@ def quotas(args, extra_fields, **kwargs):
     if r.status_code == 200:
         print('Requests left: ', r.json()['requests'])
     else:
-        print('An error occured. User is not registered or auth-token is broken. Try "pyx auth <token> first.')
+        print('An error occurred. User is not registered or auth-token is broken. Try "pyx auth <token> first.')
         return
 
 
@@ -593,7 +601,7 @@ def users_remote_models(args, extra_fields, **kwargs):
             for i in r.json()['models']:
                 print('* (id: {id}) {license} {name} (approved: {approved}) (published: {published})'.format(**i))
     else:
-        print('An error occured. User is not registered or auth-token is broken. Try "pyx auth <token> first.')
+        print('An error occurred. User is not registered or auth-token is broken. Try "pyx auth <token> first.')
         return
 
 
