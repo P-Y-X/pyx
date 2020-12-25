@@ -469,19 +469,65 @@ def upload(args, pyx_project, **kwargs):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         print('Packing current project ...')
-        shutil.make_archive(os.path.join(tmpdirname, '_project'), 'zip', '.')
+        import tarfile
+        import os.path
+
+        def make_tarfile(output_filename, source_dir):
+            with tarfile.open(output_filename, "w") as tar:
+                for f in ['web', 'testing-data', 'models', 'pyx.json']:
+                    tar.add(os.path.join(source_dir, f), arcname=f)
+
+        make_tarfile(os.path.join(tmpdirname, '_project.tar'), '.')
+        # shutil.make_archive(os.path.join(tmpdirname, '_project'), 'zip', '.')
+
+        class upload_in_chunks(object):
+            def __init__(self, filename, chunksize=1 << 13):
+                self.filename = filename
+                self.chunksize = chunksize
+                self.totalsize = os.path.getsize(filename)
+                self.readsofar = 0
+
+            def __iter__(self):
+                with open(self.filename, 'rb') as file:
+                    while True:
+                        data = file.read(self.chunksize)
+                        if not data:
+                            sys.stderr.write("\n")
+                            break
+                        self.readsofar += len(data)
+                        percent = self.readsofar * 1e2 / self.totalsize
+                        sys.stderr.write("\r{percent:3.0f}%".format(percent=percent))
+                        yield data
+
+            def __len__(self):
+                return self.totalsize
+
+        class IterableToFileAdapter(object):
+            def __init__(self, iterable):
+                self.iterator = iter(iterable)
+                self.length = len(iterable)
+
+            def read(self, size=-1):  # TBD: add buffer for `len(data) > size` case
+                return next(self.iterator, b'')
+
+            def __len__(self):
+                return self.length
 
         print('Uploading data ...')
         model_id = str(pyx_project['id'])
-        fileobj = open(os.path.join(tmpdirname, '_project.zip'), 'rb')
-        headers = {'user-token':  __PYX_CONFIG__["user_token"]}
+        # fileobj = open(os.path.join(tmpdirname, '_project.tar'), 'rb')
+        headers = {'user-token':  __PYX_CONFIG__["user_token"],
+                   'Content-Type': 'application/octet-stream'}
+
+        fileobj_it = upload_in_chunks(os.path.join(tmpdirname, '_project.tar'), 1024 * 1024 * 16)
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/upload'),
                           headers=headers,
-                          files={"project_files": ("project.zip", fileobj)})
+                          data=fileobj_it)
 
         if r.status_code == 200:
             print('Successfully uploaded.')
         else:
+            print(r.status_code)
             print('An error occurred.')
 
 
@@ -510,11 +556,15 @@ def download(args, **kwargs):
         return
 
     with tempfile.TemporaryDirectory() as tmpdirname:
-        print('Packing current project ...')
-        with open(os.path.join(tmpdirname, 'src.zip'), 'wb') as out_file:
+        print('Unpacking current project ...')
+        with open(os.path.join(tmpdirname, '_project.tar'), 'wb') as out_file:
             shutil.copyfileobj(r.raw, out_file)
 
-        shutil.unpack_archive(os.path.join(tmpdirname, 'src.zip'), args.project_name)
+        os.makedirs(args.project_name, exist_ok=True)
+        import tarfile
+        tar = tarfile.open(os.path.join(tmpdirname, '_project.tar'))
+        tar.extractall(path=args.project_name)
+        tar.close()
 
         print('....')
         print('DONE')
