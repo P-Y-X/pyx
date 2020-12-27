@@ -3,129 +3,13 @@ import os
 import sys
 import json
 import inquirer
-from datetime import datetime
-import requests
-from urllib.parse import urljoin
+
+from pyx.misc import __PYX_PROJECT_TEMPLATE__, __PYX_CONFIG__, __PYX_MODULE_TEMPLATE__
+from pyx.misc import _load_config, _save_config, _sync_meta, _get_category_choices, _get_template_path
+from pyx.misc import ensure_pyx_project, ensure_pyx_module, ensure_have_permissions, with_pyx_config
 
 
-__PYX_CONFIG__ = {
-    'api_url': 'https://beta.pyx.ai/api/',
-    'frameworks': ['pytorch', 'onnx'],
-    'required_fields': ['name', 'paper_url', 'dataset', 'license', 'description_short', 'description_full', 'price'],
-    'last_meta_update': 0.0,
-    # 'api_url': 'http://127.0.0.1:8888/api/'
-}
-
-
-__PYX_PROJECT_TEMPLATE__ = {
-    'author': '',
-    'project_name': '',
-    'category_id': '',
-}
-
-
-def ensure_pyx_project(func):
-    def wrapper_fn(*args, **kwargs):
-        if not os.path.exists('pyx.json'):
-            print('Cant find pyx.json. Are you in a pyx-project directory?')
-            return False
-
-        with open(os.path.join('pyx.json'), 'r') as f:
-            pyx_project_json = json.load(f)
-            f.close()
-
-        func_output = func(*args, **{**kwargs, 'pyx_project': pyx_project_json})
-
-        with open(os.path.join('pyx.json'), 'w') as f:
-            f.write(json.dumps(pyx_project_json, indent=4))
-            f.close()
-
-        return func_output
-    return wrapper_fn
-
-
-def ensure_have_permissions(func):
-    def wrapper_fn(*args, **kwargs):
-        pyx_project = kwargs['pyx_project']
-
-        if 'id' not in pyx_project:
-            print('Can not find the id. If you have an approval please specify the model id:')
-            print('$ pyx config --id <MODEL_ID>')
-            return False
-
-        # TODO: send request to pyx api
-
-        func_output = func(*args, **kwargs)
-
-        return func_output
-    return wrapper_fn
-
-
-def _sync_meta():
-    if 'categories' in __PYX_CONFIG__:
-        if 'last_meta_update' in __PYX_CONFIG__:
-            if datetime.timestamp(datetime.now()) - __PYX_CONFIG__['last_meta_update'] < 60 * 60:
-                # Cache for 1 hour
-                return
-
-    print('Updating meta information...')
-    r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'categories'))
-    if r.status_code == 200:
-        categories_json = r.json()['categories']
-        __PYX_CONFIG__['last_meta_update'] = datetime.timestamp(datetime.now())
-        __PYX_CONFIG__['categories'] = categories_json
-        _save_config()
-    else:
-        print('An error occurred. Please, check your connection and try again later.')
-
-
-def _get_template_path(subcategory_id):
-    subcategory_obj = next(obj for obj in __PYX_CONFIG__['categories'] if obj['id'] == subcategory_id)
-    category_obj = next(obj for obj in __PYX_CONFIG__['categories'] if obj['id'] == subcategory_obj['parent_id'])
-
-    return '{}/{}'.format(category_obj['url'], subcategory_obj['url'])
-
-
-def _get_category_choices(answers):
-    root_id = None
-    if 'category' in answers:
-        root_id = answers['category']
-    return [(i['name'], i['id']) for i in __PYX_CONFIG__['categories'] if i['parent_id'] == root_id]
-
-
-def _load_config():
-    """
-    Load JSON config from ~/.pyx/pyx.json
-    """
-    import json
-
-    config_path_dir = os.path.join(os.path.expanduser('~'), '.pyx')
-    config_path = os.path.join(config_path_dir, 'pyx.json')
-
-    if os.path.exists(config_path):
-        global __PYX_CONFIG__
-        with open(config_path, 'r') as f:
-            __PYX_CONFIG__ = {**__PYX_CONFIG__, **json.load(f)}
-            f.close()
-
-
-def _save_config():
-    """
-    Save JSON config to ~/.pyx/pyx.json
-    """
-    import os
-    import json
-
-    config_path_dir = os.path.join(os.path.expanduser('~'), '.pyx')
-    config_path = os.path.join(config_path_dir, 'pyx.json')
-
-    os.makedirs(config_path_dir, exist_ok=True)
-    with open(config_path, 'w') as f:
-        f.write(json.dumps(__PYX_CONFIG__, indent=4))
-        f.close()
-
-
-def _add_framework(project_path_prefix, subcategory_id, framework, **kwargs):
+def _add_framework(project_path_prefix, subcategory_id, framework, model_id=None, **kwargs):
     """
     Add model to the project
     """
@@ -147,35 +31,37 @@ def _add_framework(project_path_prefix, subcategory_id, framework, **kwargs):
         )
 
     if os.path.exists(pyx_boilerplate_path):
-        print('Adding model ...')
-        try:
-            from shutil import copytree
-            copytree(pyx_boilerplate_path, os.path.join(project_path_prefix, 'models', framework))
-            print('...')
-            print('Your boilerplate is ready to use. Please, run:')
-            print('$ pyx run ' + framework)
-            print('or :')
-            print('$ cd models/{}'.format(framework))
-            print('$ python PYX.py')
-        except FileExistsError:
-            print('Destination directory is already exist. Consider another name of the project.')
+        print('Adding framework ...')
+
+        if not os.path.exists('PYX.py'):
+            from shutil import copyfile
+            copyfile(os.path.join(pyx_boilerplate_path, 'PYX.py'),
+                     os.path.join(project_path_prefix, 'PYX.py'))
+
+            # with open(os.path.join(project_path_prefix, 'pyx_module.json'), 'w') as f:
+            #     pyx_module = {**__PYX_MODULE_TEMPLATE__, 'framework': framework, 'model_id': model_id}
+            #     f.write(json.dumps(pyx_module, indent=4))
+            #     f.close()
+        else:
+            print('Destination PYX.py is already exists.')
     else:
         print('Template for category {0} not found'.format(subcategory_path))
 
 
-def auth(args, **kwargs):
+@with_pyx_config
+def auth(args, pyx_config, **kwargs):
     """
     Authorization
     """
-    __PYX_CONFIG__['user_token'] = args.user_token
+    pyx_config['user_token'] = args.user_token
 
     # TODO: check user creds
     import requests
     from urllib.parse import urljoin
-    headers = {'user-token': __PYX_CONFIG__["user_token"]}
+    headers = {'user-token': pyx_config["user_token"]}
 
     r = requests.get(
-        urljoin(__PYX_CONFIG__["api_url"], 'auth/check'),
+        urljoin(pyx_config["api_url"], 'auth/check'),
         params={},
         headers=headers
     )
@@ -183,11 +69,12 @@ def auth(args, **kwargs):
     if r.status_code == 200:
         print('Authorized.')
     else:
-        __PYX_CONFIG__['user_token'] = ''
+        pyx_config['user_token'] = ''
         print('Wrong token.')
 
 
-def create(args, unknown, **kwargs):
+@with_pyx_config
+def create(args, pyx_config, unknown, **kwargs):
     """
     Create new project
     """
@@ -209,31 +96,35 @@ def create(args, unknown, **kwargs):
                       message="Please, specify project name",
                       default=project_name,
                       ),
-        inquirer.Checkbox('frameworks',
-                          message="Prepare boilerplates for specific frameworks",
-                          choices=__PYX_CONFIG__['frameworks']
-                          ),
+        inquirer.List('framework',
+                      message="Prepare boilerplate for specific framework",
+                      choices=pyx_config['frameworks']
+                      ),
     ]
+
     answers = inquirer.prompt(questions)
 
     project_name = answers['project_name']
     category_id = answers['subcategory']
-    frameworks = answers['frameworks']
+    framework = answers['framework']
 
-    import os
-    import json
     try:
         print('Creating project ...')
         os.makedirs(project_name)
         os.makedirs(os.path.join(project_name, 'web'))
-        os.makedirs(os.path.join(project_name, 'models'))
         os.makedirs(os.path.join(project_name, 'testing-data'))
+
         with open(os.path.join(project_name, 'web/description.md'), 'w') as f:
             f.write('# {}\n'.format(project_name))
             f.close()
 
         with open(os.path.join(project_name, 'pyx.json'), 'w') as f:
-            pyx_project = {**__PYX_PROJECT_TEMPLATE__, 'project_name': project_name, 'category_id': category_id}
+            pyx_project = {**__PYX_PROJECT_TEMPLATE__,
+                           'project_name': project_name,
+                           'category_id': category_id,
+                           'framework': framework
+                           }
+
             f.write(json.dumps(pyx_project, indent=4))
             f.close()
 
@@ -241,7 +132,7 @@ def create(args, unknown, **kwargs):
             print('Your project is ready to use. Please go to the project folder:')
             print('$ cd ' + project_name)
 
-            print('Your can also add boilerplates for your project:')
+            print('Your can also add pyx_module.json and PYX.py boilerplates for your project:')
             print('$ pyx add {framework}')
 
             print('Please, place testing samples to:')
@@ -250,8 +141,7 @@ def create(args, unknown, **kwargs):
             print('If you want to attach any images / gifs, place them to:')
             print('{}/web'.format(project_name))
 
-            for framework in frameworks:
-                _add_framework(project_name, category_id, framework)
+            _add_framework(project_name, category_id, framework)
 
     except FileExistsError:
         print('Destination directory is already exist. Consider another name of the project.')
@@ -294,6 +184,7 @@ def configure(args, pyx_project, extra_fields, **kwargs):
         inquirer.Editor('description_short', message="Please, specify short description of your model",
                         default=pyx_project['description_short']),
     ]
+
     answers = inquirer.prompt(questions)
     for k in answers:
         pyx_project[k] = answers[k]
@@ -306,8 +197,39 @@ def add(args, pyx_project, **kwargs):
     """
     Add model to the project
     """
-    print(args, kwargs)
-    _add_framework('./', pyx_project['category_id'], args.framework)
+    model_id = pyx_project['model_id'] if 'model_id' in pyx_project else None
+    _add_framework('./', pyx_project['category_id'], model_id=model_id, framework=args.framework)
+
+
+def attach(args, **kwargs):
+    """
+    Add pyx-module to a project
+    """
+    questions = [
+        inquirer.List('category',
+                      message="What is the category of your project?",
+                      choices=_get_category_choices,
+                      ),
+        inquirer.List('subcategory',
+                      message="What is the subcategory of your project?",
+                      choices=_get_category_choices,
+                      ),
+        inquirer.Text('model_id',
+                      message="Set model id if you have one",
+                      default=None,
+                      ),
+        inquirer.List('framework',
+                      message="Prepare boilerplate for specific framework",
+                      choices=__PYX_CONFIG__['frameworks']
+                      ),
+    ]
+
+    answers = inquirer.prompt(questions)
+
+    category_id = answers['subcategory']
+    framework = answers['framework']
+    model_id = answers['model_id']
+    _add_framework('./', category_id=category_id, model_id=model_id, framework=framework)
 
 
 @ensure_pyx_project
@@ -321,51 +243,50 @@ def test(*args, pyx_project, **kwargs):
 
     print('Testing project ...')
 
-    pyx_project['models'] = {}
-    models = os.listdir('models')
-    for model in models:
-        try:
-            import sys
-            import tempfile
-            sys.path.append('./models/' + model)
-            from PYX import get_weight_paths, predict
+    pyx_project['meta'] = {}
 
-            print('Testing model {} ...'.format(model))
-            print('Initializing model ...')
-            weight_paths = {i: os.path.join('./models/' + model, k) for i, k in get_weight_paths().items()}
-            print(weight_paths)
+    try:
+        import sys
+        import tempfile
+        sys.path.append('.')
+        from PYX import get_weight_paths, predict
 
-            time_measures = []
-            for i in range(10):
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    start = time.time()
-                    predict('./testing-data', tmpdirname, weight_paths, 'cuda')
-                    end = time.time()
-                    time_measures.append(end - start)
-                    print('Inference time: ', end - start)
+        print('Testing model ...')
+        print('Initializing model ...')
+        weight_paths = {i: k for i, k in get_weight_paths().items()}
+        print('weight_paths: ', weight_paths)
 
-            print('Mean inference time:', np.mean(time_measures))
+        time_measures = []
+        for i in range(10):
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                start = time.time()
+                predict('./testing-data', tmpdirname, weight_paths, 'cuda')
+                end = time.time()
+                time_measures.append(end - start)
+                print('Inference time: ', end - start)
 
-            pyx_project['models'][model] = {
-                'weight_paths': get_weight_paths(),
-                'mean_inference_time': np.mean(time_measures),
-            }
+        print('Mean inference time:', np.mean(time_measures))
 
-            print('....')
-            print('PASSED')
+        pyx_project['meta'] = {
+            'weight_paths': get_weight_paths(),
+            'mean_inference_time': np.mean(time_measures),
+        }
 
-            del get_weight_paths, predict
-            del sys.modules["PYX"]
+        print('....')
+        print('PASSED')
 
-            from gc import collect
-            collect()
+        del get_weight_paths, predict
+        del sys.modules["PYX"]
 
-            sys.path.pop()
-        except Exception as e:
-            print(e.with_traceback())
-            print('....')
-            print('An error occurred.')
-            return False
+        from gc import collect
+        collect()
+
+        sys.path.pop()
+    except Exception as e:
+        print(e.with_traceback())
+        print('....')
+        print('An error occurred.')
+        return False
 
     return True
 
@@ -376,19 +297,17 @@ def run_locally(args, pyx_project, extra_fields, **kwargs):
     import time
     import sys
 
-    framework = args.framework
     input_dir = args.input_dir
     output_dir = args.output_dir
 
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        sys.path.append('./models/' + framework)
         from PYX import get_weight_paths, predict
 
-        print('Testing model {} ...'.format(framework))
+        print('Testing model ...')
         print('Initializing model ...')
-        weight_paths = {i: os.path.join('./models/' + framework, k) for i, k in get_weight_paths().items()}
+        weight_paths = {i: k for i, k in get_weight_paths().items()}
         print(weight_paths)
 
         start = time.time()
@@ -416,8 +335,9 @@ def run_locally(args, pyx_project, extra_fields, **kwargs):
         return False
 
 
+@with_pyx_config
 @ensure_pyx_project
-def publish(args, pyx_project, **kwargs):
+def publish(args, pyx_project, pyx_config, **kwargs):
     import requests
     from urllib.parse import urljoin
 
@@ -427,15 +347,12 @@ def publish(args, pyx_project, **kwargs):
             print('$ pyx configure')
             return
 
-    from glob import glob
-    pyx_project['web'] = [os.path.relpath(i, './web') for i in glob('./web/**', recursive=True) if os.path.isfile(i)]
-
     if 'id' in pyx_project:
         print('Updating project:')
-        headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
+        headers = {'Content-type': 'application/json', 'user-token': pyx_config["user_token"]}
         r = requests.put(urljoin(__PYX_CONFIG__["api_url"], 'models/' + str(pyx_project['id'])), headers=headers, json=pyx_project)
     else:
-        headers = {'Content-type': 'application/json', 'user-token': __PYX_CONFIG__["user_token"]}
+        headers = {'Content-type': 'application/json', 'user-token': pyx_config["user_token"]}
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models'), headers=headers, json=pyx_project)
 
     print('After verification you can call the following to make your listing available:')
@@ -458,12 +375,12 @@ def publish(args, pyx_project, **kwargs):
         pass
 
 
+@with_pyx_config
 @ensure_pyx_project
 @ensure_have_permissions
-def upload(args, pyx_project, **kwargs):
+def upload(args, pyx_project, pyx_config, **kwargs):
     import requests
     from urllib.parse import urljoin
-    import shutil
     import os
     import tempfile
 
@@ -474,11 +391,14 @@ def upload(args, pyx_project, **kwargs):
 
         def make_tarfile(output_filename, source_dir):
             with tarfile.open(output_filename, "w") as tar:
-                for f in ['web', 'testing-data', 'models', 'pyx.json']:
-                    tar.add(os.path.join(source_dir, f), arcname=f)
+                for f in os.listdir():
+                    dir_name = f
+                    if f not in ['web', 'testing-data']:
+                        dir_name = 'models/' + pyx_project['framework'] + '/' + dir_name
+                    tar.add(os.path.join(source_dir, f), arcname=dir_name)
 
         make_tarfile(os.path.join(tmpdirname, '_project.tar'), '.')
-        # shutil.make_archive(os.path.join(tmpdirname, '_project'), 'zip', '.')
+        print(os.path.join(tmpdirname, '_project.tar'))
 
         class upload_in_chunks(object):
             def __init__(self, filename, chunksize=1 << 13):
@@ -502,21 +422,9 @@ def upload(args, pyx_project, **kwargs):
             def __len__(self):
                 return self.totalsize
 
-        class IterableToFileAdapter(object):
-            def __init__(self, iterable):
-                self.iterator = iter(iterable)
-                self.length = len(iterable)
-
-            def read(self, size=-1):  # TBD: add buffer for `len(data) > size` case
-                return next(self.iterator, b'')
-
-            def __len__(self):
-                return self.length
-
         print('Uploading data ...')
         model_id = str(pyx_project['id'])
-        # fileobj = open(os.path.join(tmpdirname, '_project.tar'), 'rb')
-        headers = {'user-token':  __PYX_CONFIG__["user_token"],
+        headers = {'user-token':  pyx_config["user_token"],
                    'Content-Type': 'application/octet-stream'}
 
         fileobj_it = upload_in_chunks(os.path.join(tmpdirname, '_project.tar'), 1024 * 1024 * 16)
@@ -531,7 +439,8 @@ def upload(args, pyx_project, **kwargs):
             print('An error occurred.')
 
 
-def download(args, **kwargs):
+@with_pyx_config
+def download(args, pyx_config, **kwargs):
     import requests
     from urllib.parse import urljoin
     import shutil
@@ -539,13 +448,13 @@ def download(args, **kwargs):
     import tempfile
 
     version = 'latest'
-    model_id = args.model_id
+    model_id = args.model_name
     if model_id.find(':') != -1:
         model_id, version = model_id.split(':')
 
     print('Downloading data ...')
 
-    headers = {'user-token':  __PYX_CONFIG__["user_token"]}
+    headers = {'user-token':  pyx_config["user_token"]}
     r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/download/' + version),
                      headers=headers, stream=True)
 
@@ -570,7 +479,8 @@ def download(args, **kwargs):
         print('DONE')
 
 
-def cloud_run(args, extra_fields, **kwargs):
+@with_pyx_config
+def cloud_run(args, extra_fields, pyx_config, **kwargs):
     import requests
     from urllib.parse import urljoin
     import shutil
@@ -600,7 +510,7 @@ def cloud_run(args, extra_fields, **kwargs):
 
         data = {'input_dir': base64_encode_file((os.path.join(tmpdirname, '_input_files.zip'))).decode("utf-8")}
 
-        headers = {'user-token': __PYX_CONFIG__["user_token"]}
+        headers = {'user-token': pyx_config["user_token"]}
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/predict/' + framework + '/' + version),
                           headers=headers, json=data)
 
@@ -620,11 +530,12 @@ def cloud_run(args, extra_fields, **kwargs):
     pass
 
 
-def quotas(args, extra_fields, **kwargs):
+@with_pyx_config
+def quotas(args, extra_fields, pyx_config, **kwargs):
     import requests
     from urllib.parse import urljoin
 
-    headers = {'user-token': __PYX_CONFIG__["user_token"]}
+    headers = {'user-token': pyx_config["user_token"]}
     r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'quotas/'), headers=headers)
 
     if r.status_code == 200:
@@ -634,11 +545,12 @@ def quotas(args, extra_fields, **kwargs):
         return
 
 
-def users_remote_models(args, extra_fields, **kwargs):
+@with_pyx_config
+def users_remote_models(args, extra_fields, pyx_config, **kwargs):
     import requests
     from urllib.parse import urljoin
 
-    headers = {'user-token': __PYX_CONFIG__["user_token"]}
+    headers = {'user-token': pyx_config["user_token"]}
     r = requests.get(urljoin(__PYX_CONFIG__["api_url"], 'users/'), headers=headers)
 
     if r.status_code == 200:
@@ -656,9 +568,6 @@ def users_remote_models(args, extra_fields, **kwargs):
 
 
 def main():
-    _load_config()
-    _sync_meta()
-
     parser = argparse.ArgumentParser(prog='pyx')
 
     subparsers = parser.add_subparsers(dest='mode', help='sub-command help')
@@ -673,7 +582,7 @@ def main():
     parser_create.add_argument('framework', type=str, help='the framework you want to add')
 
     parser_download = subparsers.add_parser('download', help='Pull a published workspace')
-    parser_download.add_argument('model_id', type=str, help='model id from pyx.ai')
+    parser_download.add_argument('model_name', type=str, help='model id / framework from pyx.ai')
     parser_download.add_argument('project_name', type=str, help='destination project name')
 
     parser_publish = subparsers.add_parser('publish', help='Publish a project to pyx.ai')
@@ -728,4 +637,3 @@ def main():
     }
 
     subprogs[params.mode](params, extra_fields=extra_params, unknown=unknown)
-    _save_config()

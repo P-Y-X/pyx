@@ -1,4 +1,4 @@
-from model import Model
+from torchvision.models import resnet18
 from typing import Dict
 
 
@@ -20,7 +20,7 @@ def predict(input_directory: str, output_directory: str, weight_paths: Dict[str,
     import os
     import cv2
 
-    model = Model()
+    model = resnet18()
     # model.load_state_dict(torch.load(weight_paths['model']))
     model = model.to(device)
 
