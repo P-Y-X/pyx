@@ -363,8 +363,8 @@ def publish(args, pyx_project, pyx_config, **kwargs):
         for k in r.json():
             pyx_project[k] = r.json()[k]
 
-        print('You also can upload files using:')
-        print('$ pyx publish')
+        print('You also have to upload files using:')
+        print('$ pyx upload')
 
         if 'make_available' in kwargs['extra_fields']:
             r = requests.put(urljoin(__PYX_CONFIG__["api_url"], 'models/' + str(pyx_project['id']) + '/publish'),

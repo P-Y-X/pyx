@@ -114,18 +114,20 @@ def _sync_meta(pyx_config):
         print('An error occurred. Please, check your connection and try again later.')
 
 
-def _get_template_path(subcategory_id):
-    subcategory_obj = next(obj for obj in __PYX_CONFIG__['categories'] if obj['id'] == subcategory_id)
-    category_obj = next(obj for obj in __PYX_CONFIG__['categories'] if obj['id'] == subcategory_obj['parent_id'])
+@with_pyx_config
+def _get_template_path(subcategory_id, pyx_config):
+    subcategory_obj = next(obj for obj in pyx_config['categories'] if obj['id'] == subcategory_id)
+    category_obj = next(obj for obj in pyx_config['categories'] if obj['id'] == subcategory_obj['parent_id'])
 
     return '{}/{}'.format(category_obj['url'], subcategory_obj['url'])
 
 
-def _get_category_choices(answers):
+@with_pyx_config
+def _get_category_choices(answers, pyx_config):
     root_id = None
     if 'category' in answers:
         root_id = answers['category']
-    return [(i['name'], i['id']) for i in __PYX_CONFIG__['categories'] if i['parent_id'] == root_id]
+    return [(i['name'], i['id']) for i in pyx_config['categories'] if i['parent_id'] == root_id]
 
 
 def _load_config():
