@@ -303,6 +303,7 @@ def run_locally(args, pyx_project, extra_fields, **kwargs):
     os.makedirs(output_dir, exist_ok=True)
 
     try:
+        sys.path.append('.')
         from PYX import get_weight_paths, predict
 
         print('Testing model ...')
@@ -362,9 +363,7 @@ def publish(args, pyx_project, pyx_config, **kwargs):
         for k in r.json():
             pyx_project[k] = r.json()[k]
 
-        upload(args, pyx_project=pyx_project)
-
-        print('You also can upload following changes using:')
+        print('You also can upload files using:')
         print('$ pyx publish')
 
         if 'make_available' in kwargs['extra_fields']:
@@ -515,7 +514,7 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
                           headers=headers, json=data)
 
         print('Waiting for data to be processed...')
-        print(r.status_code)
+        print(r.status_code, r.content)
         if r.status_code == 200:
             print('Successfully predicted.')
             print('Unpacking result ...')
@@ -594,7 +593,6 @@ def main():
     parser_cloud_run.add_argument('output_dir', type=str, help='directory with results')
 
     parser_run = subparsers.add_parser('run', help='Perform inference locally')
-    parser_run.add_argument('framework', type=str, help='framework to perform inference on')
     parser_run.add_argument('input_dir', type=str, help='directory with input samples')
     parser_run.add_argument('output_dir', type=str, help='directory with results')
 
