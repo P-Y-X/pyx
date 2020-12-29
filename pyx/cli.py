@@ -154,14 +154,6 @@ def configure(args, pyx_project, extra_fields, **kwargs):
     """
     extra_fields = vars(extra_fields)
 
-    if os.path.exists('./web/description.md'):
-        with open('./web/description.md', 'r') as f:
-            pyx_project['description_full'] = f.read()
-            f.close()
-    else:
-        print('Please, provide web/description.md file')
-        return
-
     for k in extra_fields:
         if k in pyx_project.keys():
             pyx_project[k] = extra_fields[k]
@@ -341,6 +333,14 @@ def run_locally(args, pyx_project, extra_fields, **kwargs):
 def publish(args, pyx_project, pyx_config, **kwargs):
     import requests
     from urllib.parse import urljoin
+
+    if os.path.exists('./web/description.md'):
+        with open('./web/description.md', 'r') as f:
+            pyx_project['description_full'] = f.read()
+            f.close()
+    else:
+        print('Please, provide web/description.md file')
+        return
 
     for k in __PYX_CONFIG__['required_fields']:
         if k not in pyx_project:
