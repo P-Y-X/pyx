@@ -18,6 +18,13 @@ __PYX_PROJECT_TEMPLATE__ = {
     'author': '',
     'project_name': '',
     'category_id': '',
+    'name': '',
+    'paper_url': '',
+    'dataset': '',
+    'license': '',
+    'description_short': '',
+    'description_full': '',
+    'price': ''
 }
 
 __PYX_MODULE_TEMPLATE__ = {
@@ -28,19 +35,21 @@ __PYX_MODULE_TEMPLATE__ = {
 
 def ensure_pyx_project(func):
     def wrapper_fn(*args, **kwargs):
-        if not os.path.exists('pyx.json'):
-            print('Cant find pyx.json. Are you in a pyx-project directory?')
-            return False
+        if 'pyx_project' not in kwargs:
+            if not os.path.exists('pyx.json'):
+                print('Cant find pyx.json. Are you in a pyx-project directory?')
+                return False
 
-        with open(os.path.join('pyx.json'), 'r') as f:
-            pyx_project_json = json.load(f)
-            f.close()
+            with open(os.path.join('pyx.json'), 'r') as f:
+                pyx_project = json.load(f)
+                f.close()
 
-        func_output = func(*args, **{**kwargs, 'pyx_project': pyx_project_json})
+        func_output = func(*args, **{**kwargs, 'pyx_project': pyx_project})
 
-        with open(os.path.join('pyx.json'), 'w') as f:
-            f.write(json.dumps(pyx_project_json, indent=4))
-            f.close()
+        if 'pyx_project' not in kwargs:
+            with open(os.path.join('pyx.json'), 'w') as f:
+                f.write(json.dumps(pyx_project, indent=4))
+                f.close()
 
         return func_output
     return wrapper_fn
