@@ -333,7 +333,7 @@ def publish(args, pyx_project, pyx_config, **kwargs):
             pyx_project[k] = r.json()[k]
 
         _save_config(pyx_config)
-        upload()
+        upload(args, pyx_project=pyx_project)
 
         if 'make_available' in kwargs['extra_fields']:
             r = requests.put(urljoin(__PYX_CONFIG__["api_url"], 'models/' + str(pyx_project['id']) + '/publish'),
@@ -487,11 +487,11 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
             print('Successfully predicted.')
             print('Unpacking result ...')
             res = r.json()
-            print(res)
 
             from_base64(res['output_dir'], os.path.join(tmpdirname, '_output_files.zip'))
             shutil.unpack_archive(os.path.join(tmpdirname, '_output_files.zip'), args.output_dir)
         else:
+            print(r.content)
             print('An error occurred.')
 
     pass

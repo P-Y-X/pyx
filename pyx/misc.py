@@ -35,6 +35,7 @@ __PYX_MODULE_TEMPLATE__ = {
 
 def ensure_pyx_project(func):
     def wrapper_fn(*args, **kwargs):
+        print(kwargs)
         if 'pyx_project' not in kwargs:
             if not os.path.exists('pyx.json'):
                 print('Cant find pyx.json. Are you in a pyx-project directory?')
@@ -43,13 +44,14 @@ def ensure_pyx_project(func):
             with open(os.path.join('pyx.json'), 'r') as f:
                 pyx_project = json.load(f)
                 f.close()
+            func_output = func(*args, **{**kwargs, 'pyx_project': pyx_project})
 
-        func_output = func(*args, **{**kwargs, 'pyx_project': pyx_project})
-
-        if 'pyx_project' not in kwargs:
             with open(os.path.join('pyx.json'), 'w') as f:
                 f.write(json.dumps(pyx_project, indent=4))
                 f.close()
+
+        else:
+            func_output = func(*args, **{**kwargs})
 
         return func_output
     return wrapper_fn
