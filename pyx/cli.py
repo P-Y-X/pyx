@@ -36,7 +36,7 @@ def _add_framework(category_id, framework, **kwargs):
         if not os.path.exists('PYX.py'):
             from shutil import copyfile
             copyfile(os.path.join(pyx_boilerplate_path, 'pyx-endpoints.py'),
-                     'pyx-endpoints.py')
+                     'pyx_endpoints.py')
 
         else:
             print('Destination PYX.py is already exists.')
