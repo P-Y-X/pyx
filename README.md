@@ -8,43 +8,48 @@ To install `pyx` locally, please run the following command:
 pip install https://github.com/P-Y-X/pyx
 ```
 
-## Basic Usage
+## Publishing your model
 
-1. Initialize a project directory structure
+1. To initialize a pyx project structure enter the project directory and run `create` command:
 
     ```bash
-    > pyx create
+    cd <project_name>
+    pyx create
     ```
 
-    You will specify:
-    * category and subcategory of the project
+    You will be ask to specify:
+    * category of the project
     * project name
-    * ml framework
+    * machine learning framework
 
-2. (Optional) You can add a boilerplate code for your model
+    The command will create following files and directories:
+    * `pyx.json`
+    * `pyx-endpoints.py` the pyx integration and inference code
+    * `pyx-web` directory for publishing on pyx platform 
+    * `pyx-testing-data` directory for performing a local sanity check
 
-    ```bash
-    > cd <project_name>
-    > pyx add <template_name>
-    ```
-    The command will create a model directory with the corresponding boilerplate code. You can run it locally:
-    ```bash
-    > cd models/<template_name>
-    > python PYX.py
-    ```
 
-3. Modify the `PYX.py` script to reflect the logic of your model.
-    * `PYX.py`
+3. Modify the `pyx-endpoints.py` script to reflect the logic of your model.
+    You will need to implement two methods:
+    1. `get_weight_paths()` should return the dict of weights paths
+    2. `predict()` the inference code 
 
 4. Run the local test to be sure everything is ready:
     ```bash
-    > pyx test
+    pyx test
     ```
 
-5. Publish a model:
+5. Publish and upload the model:
     ```bash
-    > pyx publish
+    pyx publish
     ```
+    The code will pack and upload your model into pyx cloud. Then our team will verify the model. Once your model is verified your project will be available on the `pyx.shop`. 
+
+Whenever you want to change a model information you can run:
+```bash
+pyx configure
+```
+and re-publish the model.
 
 ## Get a model from PYX cloud
 
