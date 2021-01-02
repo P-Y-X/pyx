@@ -8,7 +8,7 @@ def parse_requirements(filename):
 
 reqs = parse_requirements('requirements.txt')
 
-setup(name='pyx',
+setup(name='pyx-cli',
       version='0.0.1',
       description='PYX CLI / framework',
       author='PYX.ai',
@@ -18,7 +18,7 @@ setup(name='pyx',
       zip_safe=False,
       entry_points={
           'console_scripts': [
-              'pyx = pyx.cli:main',
+              'pyx = pyx_cli.cli:main',
           ],
       },
       )

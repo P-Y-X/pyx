@@ -4,9 +4,9 @@ import sys
 import json
 import inquirer
 
-from pyx.misc import __PYX_PROJECT_TEMPLATE__, __PYX_CONFIG__
-from pyx.misc import _save_config, _get_category_choices, _get_template_path
-from pyx.misc import ensure_pyx_project, ensure_have_permissions, with_pyx_config
+from pyx_cli.misc import __PYX_PROJECT_TEMPLATE__, __PYX_CONFIG__
+from pyx_cli.misc import _save_config, _get_category_choices, _get_template_path
+from pyx_cli.misc import ensure_pyx_project, ensure_have_permissions, with_pyx_config
 
 
 def _add_framework(category_id, framework, **kwargs):
