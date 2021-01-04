@@ -9,6 +9,29 @@ from pyx_cli.misc import _save_config, _get_category_choices, _get_template_path
 from pyx_cli.misc import ensure_pyx_project, ensure_have_permissions, with_pyx_config
 
 
+class UploadInChunks(object):
+    def __init__(self, filename, chunksize=1 << 13):
+        self.filename = filename
+        self.chunksize = chunksize
+        self.totalsize = os.path.getsize(filename)
+        self.readsofar = 0
+
+    def __iter__(self):
+        with open(self.filename, 'rb') as file:
+            while True:
+                data = file.read(self.chunksize)
+                if not data:
+                    sys.stderr.write("\n")
+                    break
+                self.readsofar += len(data)
+                percent = self.readsofar * 1e2 / self.totalsize
+                sys.stderr.write("\r{percent:3.0f}%".format(percent=percent))
+                yield data
+
+    def __len__(self):
+        return self.totalsize
+
+
 def _add_framework(category_id, framework, **kwargs):
     """
     Add model to the project
@@ -56,7 +79,7 @@ def auth(args, pyx_config, **kwargs):
     headers = {'user-token': pyx_config["user_token"]}
 
     r = requests.get(
-        urljoin(pyx_config["api_url"], 'auth/check'),
+        urljoin(__PYX_CONFIG__["api_url"], 'auth/check'),
         params={},
         headers=headers
     )
@@ -367,34 +390,12 @@ def upload(args, pyx_project, pyx_config, **kwargs):
 
         make_tarfile(os.path.join(tmpdirname, '_project.tar'), '.')
 
-        class upload_in_chunks(object):
-            def __init__(self, filename, chunksize=1 << 13):
-                self.filename = filename
-                self.chunksize = chunksize
-                self.totalsize = os.path.getsize(filename)
-                self.readsofar = 0
-
-            def __iter__(self):
-                with open(self.filename, 'rb') as file:
-                    while True:
-                        data = file.read(self.chunksize)
-                        if not data:
-                            sys.stderr.write("\n")
-                            break
-                        self.readsofar += len(data)
-                        percent = self.readsofar * 1e2 / self.totalsize
-                        sys.stderr.write("\r{percent:3.0f}%".format(percent=percent))
-                        yield data
-
-            def __len__(self):
-                return self.totalsize
-
         print('Uploading data ...')
         model_id = str(pyx_project['id'])
         headers = {'user-token':  pyx_config["user_token"],
                    'Content-Type': 'application/octet-stream'}
 
-        fileobj_it = upload_in_chunks(os.path.join(tmpdirname, '_project.tar'), 1024 * 1024 * 16)
+        fileobj_it = UploadInChunks(os.path.join(tmpdirname, '_project.tar'), 1024 * 1024 * 16)
         r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/upload'),
                           headers=headers,
                           data=fileobj_it)
@@ -475,20 +476,41 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
 
         print('Uploading data ...')
 
-        data = {'input_dir': base64_encode_file((os.path.join(tmpdirname, '_input_files.zip'))).decode("utf-8")}
-
         headers = {'user-token': pyx_config["user_token"]}
-        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'models/' + model_id + '/predict/' + framework + '/' + version),
-                          headers=headers, json=data)
 
-        print('Waiting for data to be processed...')
+        fileobj_it = UploadInChunks(os.path.join(tmpdirname, '_input_files.zip'), 1024 * 1024 * 1)
+        r = requests.post(urljoin(__PYX_CONFIG__["api_url"], 'tasks/enqueue/' + model_id + '/' + framework + '/' + version),
+                          headers=headers,
+                          data=fileobj_it)
+
+        if r.status_code != 200:
+            print(r.json()['status'])
+            print('An error occurred.')
+            return
+
+        task_id = r.json()['task_id']
+        print('Assigned task id {0}...'.format(task_id))
+        print()
+        print('Polling for data to be processed...')
+
+        while True:
+            headers = {'user-token': pyx_config["user_token"]}
+            r = requests.get(
+                urljoin(__PYX_CONFIG__["api_url"], 'tasks/status/' + str(task_id)),
+                headers=headers)
+            res = r.json()
+            print('\x1b[2K' + 'current status: ' + str(res['status']), end='\r')
+
+            if res['result']:
+                break
+
+        print()
 
         if r.status_code == 200:
             print('Successfully predicted.')
-            print('Unpacking result ...')
-            res = r.json()
+            print('Unpacking results ...')
 
-            from_base64(res['output_dir'], os.path.join(tmpdirname, '_output_files.zip'))
+            from_base64(res['result']['output_dir'], os.path.join(tmpdirname, '_output_files.zip'))
             shutil.unpack_archive(os.path.join(tmpdirname, '_output_files.zip'), args.output_dir)
         else:
             print(r.content)
