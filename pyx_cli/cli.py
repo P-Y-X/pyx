@@ -484,7 +484,7 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
                           data=fileobj_it)
 
         if r.status_code != 200:
-            print(r.json()['status'])
+            print(r.json()['status_msg'])
             print('An error occurred.')
             return
 
