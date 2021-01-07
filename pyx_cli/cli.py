@@ -37,19 +37,19 @@ def _add_framework(category_id, framework, **kwargs):
     Add model to the project
     """
     import os
-    import pyx
+    import pyx_cli
 
     subcategory_path = _get_template_path(category_id)
 
     pyx_boilerplate_path = os.path.join(
-        os.path.dirname(pyx.__file__), 'boilerplates',
+        os.path.dirname(pyx_cli.__file__), 'boilerplates',
         subcategory_path,
         framework
     )
 
     if not os.path.exists(pyx_boilerplate_path):
         pyx_boilerplate_path = os.path.join(
-            os.path.dirname(pyx.__file__), 'boilerplates', 'general',
+            os.path.dirname(pyx_cli.__file__), 'boilerplates', 'general',
             framework
         )
 
