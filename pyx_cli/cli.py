@@ -1,3 +1,6 @@
+# Copyright 2020 by PYX.AI
+# All rights reserved.
+
 import argparse
 import os
 import sys
@@ -10,6 +13,9 @@ from pyx_cli.misc import ensure_pyx_project, ensure_have_permissions, with_pyx_c
 
 
 class UploadInChunks(object):
+    """
+    Upload in chunks for showing progress / use stream.
+    """
     def __init__(self, filename, chunksize=1 << 13):
         self.filename = filename
         self.chunksize = chunksize
@@ -56,13 +62,12 @@ def _add_framework(category_id, framework, **kwargs):
     if os.path.exists(pyx_boilerplate_path):
         print('Adding framework ...')
 
-        if not os.path.exists('PYX.py'):
+        if not os.path.exists('pyx_endpoints.py'):
             from shutil import copyfile
-            copyfile(os.path.join(pyx_boilerplate_path, 'pyx-endpoints.py'),
-                     'pyx_endpoints.py')
+            copyfile(os.path.join(pyx_boilerplate_path, 'pyx-endpoints.py'), 'pyx_endpoints.py')
 
         else:
-            print('Destination PYX.py is already exists.')
+            print('Destination pyx_endpoints.py is already exists.')
     else:
         print('Template for category {0} not found'.format(subcategory_path))
 
@@ -143,19 +148,22 @@ def create(args, **kwargs):
             print('Please, place testing samples to:')
             print('./pyx-testing-data')
 
+            print('Shop page will contain the information from:')
+            print('./pyx-web/description.md')
+
             print('If you want to attach any images / gifs, place them to:')
             print('./pyx-web')
 
             _add_framework(category_id=category_id, framework=framework)
 
             print('Configuring project:')
-            print('You can change these parameters after by running:')
+            print('You can change these parameters later by running:')
             print('$ pyx configure')
 
             configure(pyx_project)
 
     except FileExistsError:
-        print('Destination directory is already exist. Consider another name of the project.')
+        print('Destination directories are already exist. Please, check.')
 
 
 @ensure_pyx_project
@@ -189,7 +197,7 @@ def configure(args, pyx_project, **kwargs):
 
 def attach(args, **kwargs):
     """
-    Add pyx-module to a project
+    Add another framework to a project
     """
     questions = [
         inquirer.List('category',
@@ -332,6 +340,9 @@ def run_locally(args, pyx_project, extra_fields, **kwargs):
 @with_pyx_config
 @ensure_pyx_project
 def publish(args, pyx_project, pyx_config, **kwargs):
+    """
+    Publish new or update existing model
+    """
     import requests
     from urllib.parse import urljoin
 
@@ -370,6 +381,9 @@ def publish(args, pyx_project, pyx_config, **kwargs):
 @ensure_pyx_project
 @ensure_have_permissions
 def upload(args, pyx_project, pyx_config, **kwargs):
+    """
+    Upload local data to PYX cloud.
+    """
     import requests
     from urllib.parse import urljoin
     import os
@@ -409,6 +423,9 @@ def upload(args, pyx_project, pyx_config, **kwargs):
 
 @with_pyx_config
 def download(args, pyx_config, **kwargs):
+    """
+    Get data from PYX cloud
+    """
     import requests
     from urllib.parse import urljoin
     import shutil
@@ -449,6 +466,9 @@ def download(args, pyx_config, **kwargs):
 
 @with_pyx_config
 def cloud_run(args, extra_fields, pyx_config, **kwargs):
+    """
+    Send a request for testing to pyx cloud.
+    """
     import requests
     from urllib.parse import urljoin
     import shutil
@@ -459,10 +479,6 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
     version = 'latest'
     if framework.find(':') != -1:
         framework, version = framework.split(':')
-
-    def base64_encode_file(file_to_encode):
-        import base64
-        return base64.b64encode(open(file_to_encode, 'rb').read())
 
     def from_base64(base64_data, output_file):
         import base64
@@ -475,7 +491,6 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
         shutil.make_archive(os.path.join(tmpdirname, '_input_files'), 'zip', args.input_dir)
 
         print('Uploading data ...')
-
         headers = {'user-token': pyx_config["user_token"]}
 
         fileobj_it = UploadInChunks(os.path.join(tmpdirname, '_input_files.zip'), 1024 * 1024 * 1)
@@ -521,6 +536,9 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
 
 @with_pyx_config
 def quotas(args, pyx_config, **kwargs):
+    """
+    Get current user's quotas
+    """
     import requests
     from urllib.parse import urljoin
 
@@ -536,6 +554,9 @@ def quotas(args, pyx_config, **kwargs):
 
 @with_pyx_config
 def users_remote_models(args, pyx_config, **kwargs):
+    """
+    Get available/uploaded models
+    """
     import requests
     from urllib.parse import urljoin
 
@@ -547,6 +568,7 @@ def users_remote_models(args, pyx_config, **kwargs):
             print('My orders:')
             for i in r.json()['orders']:
                 print('* (id: {id}) {license} {name}'.format(**i))
+
         if len(r.json()['models']) > 0:
             print('My models:')
             for i in r.json()['models']:

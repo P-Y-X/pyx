@@ -1,3 +1,6 @@
+# Copyright 2020 by PYX.AI
+# All rights reserved.
+
 import os
 import json
 from datetime import datetime
@@ -10,7 +13,6 @@ __PYX_CONFIG__ = {
     'frameworks': ['pytorch', 'onnx', 'tensorflow', 'gluon'],
     'required_fields': ['name', 'paper_url', 'dataset', 'license', 'description_short', 'description_full', 'price'],
     'last_meta_update': 0.0,
-    # 'api_url': 'http://127.0.0.1:8888/api/'
 }
 
 
