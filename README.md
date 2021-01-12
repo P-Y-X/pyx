@@ -1,26 +1,50 @@
 # PYX
 
+A command line tool to work with [pyx.ai](https://pyx.ai).
+
+- [Installation](##Installation)
+- [Authorization](##Authirization)
+- [Run a model remotely](##Run-a-model-remotely)
+- [Run a model locally](##Run-a-model-locally)
+- [Publish your own model](##Publish-your-own-model)
+- [License](##License)
+
 ## Installation
 
-To install `pyx` locally, please run the following command:
+To install `pyx` run:
 
 ```bash
+pip install -r requirements.txt
 pip install https://github.com/P-Y-X/pyx
 ```
 
-## Get a model from PYX cloud
+## Authorization
 
-Choose a model from the [pyx marketplace](https://beta.pyx.ai/models). 
-
-First, authorize:
+To start working with PYX cloud you need to be authorized. Log in into [pyx.ai](https://pyx.ai) and copy your access token. Then run:
 ```bash
 pyx auth <access_token>
 ```
-You can find the `Access Token` on your pyx profile web page. 
-Then pyx utility to download the model. 
+You need to do this only once on the `pyx` installation. 
+
+## Run a model remotely
+
+Prepare input data and place it into `<input_directory>`. Create an `<output_directory>` to collect the results.
+Then run:
 
 ```bash
-pyx download <model_id>/<model_name>:revision
+pyx cloud-run <model_id>/<framework>:latest <input_directory> <output_directory>
+```
+
+The <output_directory> will contain the result after successful execution.
+You can copy-paste the command above using the model's page.
+
+
+## Run a model locally
+
+Choose a model from the [pyx marketplace](https://pyx.ai/models). 
+Run pyx utility to download the model:
+```bash
+pyx download <model_id>/<model_name>:latest
 ```
 
 Where `model_id` could be found on the model's page. 
@@ -31,10 +55,9 @@ cd <project_name>
 pyx run <input_directory> <output_directory>
 ```
 
-If model is not available yet you can buy it. Then it will be accessible for downloading.
+If the model is not available yet you can buy it. Then it will be accessible for downloading.
 
-
-## Publishing your own model
+## Publish your own model
 
 1. To initialize a pyx project structure enter the project directory and run `create` command:
 
@@ -67,11 +90,11 @@ If model is not available yet you can buy it. Then it will be accessible for dow
 
 5. If you passed the previous steps you can locally run your model to be sure it produces a proper result: 
     ```bash
-    pyx run <input_dir> <output_dir>
+    pyx run <input_directory> <output_directory>
     ```
 
-    The `input_dir` should contain all the inputs required for the inference.
-    The `output_dir` will contain the result after sucessful execution.
+    The <input_directory> should contain all the inputs required for the inference.
+    The <output_directory> will contain the result after successful execution.
 
 
 6. Publish and upload the model:
