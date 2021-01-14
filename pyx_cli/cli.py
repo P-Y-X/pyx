@@ -514,9 +514,9 @@ def cloud_run(args, extra_fields, pyx_config, **kwargs):
                 urljoin(__PYX_CONFIG__["api_url"], 'tasks/status/' + str(task_id)),
                 headers=headers)
             res = r.json()
-            print('\x1b[2K' + 'current status: ' + str(res['status']), end='\r')
+            print('\x1b[2K' + 'current status: ' + str(res['status_msg']), end='\r')
 
-            if res['result']:
+            if res['result'] or res['status'] != 0:
                 break
 
         print()
