@@ -2,11 +2,11 @@
 
 A command line tool to work with [pyx.ai](https://pyx.ai).
 
-- [Installation](##Installation)
-- [Authorization](##Authirization)
-- [Run a model remotely](##Run-a-model-remotely)
-- [Run a model locally](##Run-a-model-locally)
-- [Publish your own model](##Publish-your-own-model)
+- [Installation](#installation)
+- [Authorization](#authirization)
+- [Run a model remotely](#uun-a-model-remotely)
+- [Run a model locally](#run-a-model-locally)
+- [Publish your own model](#publish-your-own-model)
 - [License](##License)
 
 ## Installation
