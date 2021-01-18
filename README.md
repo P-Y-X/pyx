@@ -15,7 +15,7 @@ To install `pyx` run:
 
 ```bash
 pip install -r requirements.txt
-pip install https://github.com/P-Y-X/pyx
+pip install git+https://github.com/P-Y-X/pyx
 ```
 
 ## Authorization
